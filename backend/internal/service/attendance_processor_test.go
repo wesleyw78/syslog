@@ -36,6 +36,9 @@ func TestFirstConnectCreatesClockIn(t *testing.T) {
 	if result.Record.EmployeeID != employee.ID {
 		t.Fatalf("expected employee id %d, got %d", employee.ID, result.Record.EmployeeID)
 	}
+	if result.Record.LastCalculatedAt != nil {
+		t.Fatalf("expected LastCalculatedAt to remain nil, got %v", result.Record.LastCalculatedAt)
+	}
 }
 
 func TestLaterConnectDoesNotOverwriteEarlierFirstConnect(t *testing.T) {
@@ -86,5 +89,28 @@ func TestDisconnectKeepsLatestDisconnect(t *testing.T) {
 	}
 	if !result.Record.LastDisconnectAt.Equal(latestDisconnect) {
 		t.Fatalf("expected last disconnect %s, got %s", latestDisconnect, result.Record.LastDisconnectAt)
+	}
+}
+
+func TestApplyEventDoesNotChangeLastCalculatedAt(t *testing.T) {
+	processor := NewAttendanceProcessor()
+	existingCalculatedAt := time.Date(2026, 3, 21, 7, 59, 0, 0, time.FixedZone("CST", 8*3600))
+	eventTime := time.Date(2026, 3, 21, 8, 1, 0, 0, time.FixedZone("CST", 8*3600))
+
+	record := domain.AttendanceRecord{
+		AttendanceDate:   time.Date(2026, 3, 21, 0, 0, 0, 0, time.FixedZone("CST", 8*3600)),
+		LastCalculatedAt: &existingCalculatedAt,
+	}
+
+	result := processor.ApplyEvent(record, domain.Employee{ID: 42}, domain.ClientEvent{
+		EventType: "connect",
+		EventTime: eventTime,
+	})
+
+	if result.Record.LastCalculatedAt == nil {
+		t.Fatal("expected LastCalculatedAt to remain set")
+	}
+	if !result.Record.LastCalculatedAt.Equal(existingCalculatedAt) {
+		t.Fatalf("expected LastCalculatedAt to remain %s, got %s", existingCalculatedAt, result.Record.LastCalculatedAt)
 	}
 }

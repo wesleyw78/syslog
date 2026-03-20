@@ -56,10 +56,6 @@ func (s *ReportService) CreatePendingReport(record domain.AttendanceRecord, repo
 }
 
 func attendanceIdentity(record domain.AttendanceRecord) string {
-	if record.ID != 0 {
-		return fmt.Sprintf("record-%d", record.ID)
-	}
-
 	return fmt.Sprintf(
 		"employee-%d-%s",
 		record.EmployeeID,

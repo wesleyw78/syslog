@@ -20,9 +20,29 @@ func TestBuildIdempotencyKey(t *testing.T) {
 
 	key := service.BuildIdempotencyKey(record, "clock_in", reportTime)
 
-	expected := "attendance-report/record-88/clock_in/2026-03-21T00:01:00Z/v5"
+	expected := "attendance-report/employee-42-2026-03-21/clock_in/2026-03-21T00:01:00Z/v5"
 	if key != expected {
 		t.Fatalf("expected idempotency key %q, got %q", expected, key)
+	}
+}
+
+func TestBuildIdempotencyKeyUsesStableBusinessIdentity(t *testing.T) {
+	service := NewReportService()
+	reportTime := time.Date(2026, 3, 21, 8, 1, 0, 0, time.FixedZone("CST", 8*3600))
+	baseRecord := domain.AttendanceRecord{
+		EmployeeID:     42,
+		AttendanceDate: time.Date(2026, 3, 21, 0, 0, 0, 0, time.FixedZone("CST", 8*3600)),
+		Version:        5,
+	}
+
+	keyWithoutID := service.BuildIdempotencyKey(baseRecord, "clock_in", reportTime)
+
+	withID := baseRecord
+	withID.ID = 88
+	keyWithID := service.BuildIdempotencyKey(withID, "clock_in", reportTime)
+
+	if keyWithID != keyWithoutID {
+		t.Fatalf("expected same idempotency key for same business record, got %q and %q", keyWithoutID, keyWithID)
 	}
 }
 

@@ -25,10 +25,6 @@ func (p *AttendanceProcessor) ApplyEvent(record domain.AttendanceRecord, employe
 		result.Record.EmployeeID = employee.ID
 	}
 
-	if !event.EventTime.IsZero() {
-		result.Record.LastCalculatedAt = timePointer(event.EventTime)
-	}
-
 	switch strings.ToLower(event.EventType) {
 	case "connect":
 		if result.Record.FirstConnectAt == nil {
