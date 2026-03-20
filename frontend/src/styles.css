@@ -1,8 +1,7 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Rajdhani:wght@500;600;700&display=swap");
-
 :root {
   color-scheme: dark;
-  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  font-family: "Avenir Next Condensed", "DIN Alternate", "Franklin Gothic Medium",
+    "Arial Narrow", "Segoe UI", sans-serif;
   --bg: #070909;
   --bg-elevated: rgba(18, 22, 23, 0.92);
   --bg-panel: rgba(14, 17, 18, 0.9);
@@ -69,7 +68,8 @@ a {
 .page-header h2,
 .panel__header h3 {
   margin: 0;
-  font-family: "Rajdhani", sans-serif;
+  font-family: "Avenir Next Condensed", "DIN Alternate", "Franklin Gothic Medium",
+    "Arial Narrow", sans-serif;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -85,7 +85,8 @@ a {
 .metric-card span,
 .nav-card__description {
   color: var(--muted);
-  font-family: "IBM Plex Mono", monospace;
+  font-family: "SFMono-Regular", "Roboto Mono", "Menlo", "Consolas",
+    "Liberation Mono", monospace;
   font-size: 0.72rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -111,7 +112,8 @@ a {
 .signal-chip strong,
 .metric-card strong,
 .coverage-row strong {
-  font-family: "IBM Plex Mono", monospace;
+  font-family: "SFMono-Regular", "Roboto Mono", "Menlo", "Consolas",
+    "Liberation Mono", monospace;
   font-size: 1.25rem;
 }
 
@@ -174,7 +176,8 @@ a {
 }
 
 .nav-card__title {
-  font-family: "Rajdhani", sans-serif;
+  font-family: "Avenir Next Condensed", "DIN Alternate", "Franklin Gothic Medium",
+    "Arial Narrow", sans-serif;
   font-size: 1.15rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;

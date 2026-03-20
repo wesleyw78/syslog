@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { NavLink, Outlet, useInRouterContext } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
 
 type ConsoleSection = {
   description: string;
@@ -53,8 +53,6 @@ type AppShellProps = {
 };
 
 export function AppShell({ children }: AppShellProps) {
-  const inRouter = useInRouterContext();
-
   return (
     <div className="app-shell">
       <header className="status-rail">
@@ -80,30 +78,21 @@ export function AppShell({ children }: AppShellProps) {
           <div className="console-nav__panel">
             <p className="console-nav__label">Route Matrix</p>
             <nav className="console-nav__items">
-              {consoleSections.map((section) =>
-                inRouter ? (
-                  <NavLink
-                    key={section.path}
-                    end={section.path === "/"}
-                    to={section.path}
-                    className={({ isActive }) =>
-                      isActive ? "nav-card nav-card--active" : "nav-card"
-                    }
-                  >
-                    <span className="nav-card__title">{section.title}</span>
-                    <span className="nav-card__description">
-                      {section.description}
-                    </span>
-                  </NavLink>
-                ) : (
-                  <div key={section.path} className="nav-card">
-                    <span className="nav-card__title">{section.title}</span>
-                    <span className="nav-card__description">
-                      {section.description}
-                    </span>
-                  </div>
-                ),
-              )}
+              {consoleSections.map((section) => (
+                <NavLink
+                  key={section.path}
+                  end={section.path === "/"}
+                  to={section.path}
+                  className={({ isActive }) =>
+                    isActive ? "nav-card nav-card--active" : "nav-card"
+                  }
+                >
+                  <span className="nav-card__title">{section.title}</span>
+                  <span className="nav-card__description">
+                    {section.description}
+                  </span>
+                </NavLink>
+              ))}
             </nav>
           </div>
 

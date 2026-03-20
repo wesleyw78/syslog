@@ -1,3 +1,4 @@
+import type { RouteObject } from "react-router-dom";
 import { createBrowserRouter } from "react-router-dom";
 
 import { AppShell } from "./layout/AppShell";
@@ -7,7 +8,7 @@ import { EmployeesPage } from "../features/employees/EmployeesPage";
 import { LogsPage } from "../features/logs/LogsPage";
 import { SettingsPage } from "../features/settings/SettingsPage";
 
-export const router = createBrowserRouter([
+export const appRoutes: RouteObject[] = [
   {
     path: "/",
     element: <AppShell />,
@@ -34,4 +35,6 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+];
+
+export const router = createBrowserRouter(appRoutes);
