@@ -3,18 +3,22 @@ package domain
 import "time"
 
 type AttendanceReport struct {
-	ID          uint64
-	ReportDate  time.Time
-	EmployeeID  uint64
-	Status      string
-	Summary     string
-	GeneratedAt *time.Time
-	CreatedAt   time.Time
+	ID                 uint64
+	AttendanceRecordID uint64
+	ReportType         string
+	IdempotencyKey     string
+	PayloadJSON        string
+	TargetURL          string
+	ReportStatus       string
+	ResponseCode       *int
+	ResponseBody       string
+	ReportedAt         *time.Time
+	RetryCount         uint32
 }
 
 type SystemSetting struct {
-	Key         string
-	Value       string
-	Description string
-	UpdatedAt   time.Time
+	ID           uint64
+	SettingKey   string
+	SettingValue string
+	UpdatedAt    time.Time
 }

@@ -5,31 +5,33 @@ import "time"
 type Employee struct {
 	ID         uint64
 	EmployeeNo string
+	SystemNo   string
 	Name       string
-	Timezone   string
-	Active     bool
+	Status     string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
 
 type EmployeeDevice struct {
-	ID               uint64
-	EmployeeID       uint64
-	DeviceIdentifier string
-	DeviceName       string
-	IsPrimary        bool
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID          uint64
+	EmployeeID  uint64
+	MacAddress  string
+	DeviceLabel string
+	Status      string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type AttendanceRecord struct {
 	ID               uint64
 	EmployeeID       uint64
-	WorkDate         time.Time
-	FirstCheckInAt   *time.Time
-	LastCheckOutAt   *time.Time
-	Status           string
-	SourceEventCount uint32
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	AttendanceDate   time.Time
+	FirstConnectAt   *time.Time
+	LastDisconnectAt *time.Time
+	ClockInStatus    string
+	ClockOutStatus   string
+	ExceptionStatus  string
+	SourceMode       string
+	Version          uint32
+	LastCalculatedAt *time.Time
 }
