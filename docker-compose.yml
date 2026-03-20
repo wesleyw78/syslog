@@ -12,5 +12,30 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
 
+  backend:
+    image: golang:1.22
+    working_dir: /workspace/backend
+    command: >
+      sh -lc "go mod download && go run ./cmd/server"
+    volumes:
+      - ./:/workspace
+    depends_on:
+      - mysql
+    ports:
+      - "8080:8080"
+      - "5514:1514/udp"
+
+  frontend:
+    image: node:22
+    working_dir: /workspace/frontend
+    command: >
+      sh -lc "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    volumes:
+      - ./:/workspace
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+
 volumes:
   mysql-data:
