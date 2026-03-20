@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"database/sql"
 	"os"
 
 	"syslog/internal/config"
@@ -8,6 +9,7 @@ import (
 
 type App struct {
 	Config config.Config
+	DB     *sql.DB
 }
 
 func New(getenv func(string) string) App {

@@ -5,6 +5,7 @@ import "strconv"
 type Config struct {
 	Timezone            string
 	SyslogRetentionDays int
+	MySQLDSN            string
 	MySQLHost           string
 	MySQLPort           int
 	MySQLUser           string
@@ -19,14 +20,15 @@ func LoadConfigFromEnv(getenv func(string) string) Config {
 	}
 
 	return Config{
-		Timezone:            stringOrDefault(getenv("TIMEZONE"), "Asia/Shanghai"),
+		Timezone:            "Asia/Shanghai",
 		SyslogRetentionDays: intOrDefault(getenv("SYSLOG_RETENTION_DAYS"), 30),
+		MySQLDSN:            stringOrDefault(getenv("MYSQL_DSN"), ""),
 		MySQLHost:           stringOrDefault(getenv("MYSQL_HOST"), "mysql"),
 		MySQLPort:           intOrDefault(getenv("MYSQL_PORT"), 3306),
 		MySQLUser:           stringOrDefault(getenv("MYSQL_USER"), "syslog"),
 		MySQLPassword:       stringOrDefault(getenv("MYSQL_PASSWORD"), "syslog"),
 		MySQLDatabase:       stringOrDefault(getenv("MYSQL_DATABASE"), "syslog"),
-		MySQLParams:         stringOrDefault(getenv("MYSQL_PARAMS"), "charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"),
+		MySQLParams:         stringOrDefault(getenv("MYSQL_PARAMS"), "charset=utf8mb4&parseTime=true&loc=Asia/Shanghai&multiStatements=true"),
 	}
 }
 

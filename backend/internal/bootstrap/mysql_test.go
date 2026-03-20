@@ -12,7 +12,7 @@ import (
 	schema "syslog/internal/db"
 )
 
-func TestOpenMySQLUsesConfigValues(t *testing.T) {
+func TestOpenMySQLUsesConfigDSNWhenProvided(t *testing.T) {
 	originalOpenDB := openDB
 	defer func() { openDB = originalOpenDB }()
 
@@ -27,12 +27,10 @@ func TestOpenMySQLUsesConfigValues(t *testing.T) {
 	}
 
 	cfg := config.Config{
-		MySQLHost:     "127.0.0.1",
-		MySQLPort:     3306,
-		MySQLUser:     "syslog",
-		MySQLPassword: "secret",
-		MySQLDatabase: "syslog",
-		MySQLParams:   "charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true",
+		MySQLDSN:  "reader:secret@tcp(db.example.com:3306)/syslog?parseTime=true&loc=Asia%2FShanghai",
+		MySQLHost: "127.0.0.1",
+		MySQLPort: 3306,
+		MySQLUser: "syslog",
 	}
 
 	db, err := OpenMySQL(cfg)
@@ -45,10 +43,36 @@ func TestOpenMySQLUsesConfigValues(t *testing.T) {
 	if capturedDriver != "mysql" {
 		t.Fatalf("expected mysql driver, got %s", capturedDriver)
 	}
-	if !strings.HasPrefix(capturedDSN, "syslog:secret@tcp(127.0.0.1:3306)/syslog?") {
-		t.Fatalf("unexpected dsn prefix %s", capturedDSN)
+	if capturedDSN != "reader:secret@tcp(db.example.com:3306)/syslog?parseTime=true&loc=Asia%2FShanghai" {
+		t.Fatalf("expected mysql dsn to be used verbatim, got %s", capturedDSN)
 	}
-	for _, fragment := range []string{"charset=utf8mb4", "parseTime=true", "loc=Local", "multiStatements=true"} {
+}
+
+func TestOpenMySQLBuildsDSNFromSplitFields(t *testing.T) {
+	originalOpenDB := openDB
+	defer func() { openDB = originalOpenDB }()
+
+	capturedDSN := ""
+	openDB = func(driverName, dsn string) (*sql.DB, error) {
+		capturedDSN = dsn
+
+		db, _, err := sqlmock.New()
+		return db, err
+	}
+
+	cfg := config.Config{
+		MySQLHost:     "127.0.0.1",
+		MySQLPort:     3306,
+		MySQLUser:     "syslog",
+		MySQLPassword: "secret",
+		MySQLDatabase: "syslog",
+		MySQLParams:   "charset=utf8mb4&parseTime=true&loc=Asia/Shanghai&multiStatements=true",
+	}
+
+	if _, err := OpenMySQL(cfg); err != nil {
+		t.Fatalf("expected open mysql to succeed, got %v", err)
+	}
+	for _, fragment := range []string{"syslog:secret@tcp(127.0.0.1:3306)/syslog?", "charset=utf8mb4", "parseTime=true", "loc=Asia%2FShanghai", "multiStatements=true"} {
 		if !strings.Contains(capturedDSN, fragment) {
 			t.Fatalf("expected dsn to contain %s, got %s", fragment, capturedDSN)
 		}
@@ -69,5 +93,14 @@ func TestRunMigrationsExecutesEmbeddedSQL(t *testing.T) {
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("expected all migration expectations to be met, got %v", err)
+	}
+}
+
+func TestMigrationSQLIsIdempotent(t *testing.T) {
+	sql := schema.SQL()
+	for _, fragment := range []string{"CREATE TABLE IF NOT EXISTS employees", "INSERT IGNORE INTO system_settings"} {
+		if !strings.Contains(sql, fragment) {
+			t.Fatalf("expected migration sql to contain %q, got %s", fragment, sql)
+		}
 	}
 }

@@ -1,4 +1,4 @@
-CREATE TABLE employees (
+CREATE TABLE IF NOT EXISTS employees (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     employee_no VARCHAR(64) NOT NULL,
     system_no VARCHAR(64) NOT NULL,
@@ -12,7 +12,7 @@ CREATE TABLE employees (
     KEY idx_employees_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE employee_devices (
+CREATE TABLE IF NOT EXISTS employee_devices (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     employee_id BIGINT UNSIGNED NOT NULL,
     mac_address VARCHAR(17) NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE employee_devices (
         FOREIGN KEY (employee_id) REFERENCES employees (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE syslog_messages (
+CREATE TABLE IF NOT EXISTS syslog_messages (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     received_at DATETIME NOT NULL,
     log_time DATETIME NULL,
@@ -43,7 +43,7 @@ CREATE TABLE syslog_messages (
     KEY idx_syslog_messages_retention_expire_at (retention_expire_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE client_events (
+CREATE TABLE IF NOT EXISTS client_events (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     syslog_message_id BIGINT UNSIGNED NOT NULL,
     event_date DATE NOT NULL,
@@ -69,7 +69,7 @@ CREATE TABLE client_events (
         FOREIGN KEY (matched_employee_id) REFERENCES employees (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE attendance_records (
+CREATE TABLE IF NOT EXISTS attendance_records (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     employee_id BIGINT UNSIGNED NOT NULL,
     attendance_date DATE NOT NULL,
@@ -90,7 +90,7 @@ CREATE TABLE attendance_records (
         FOREIGN KEY (employee_id) REFERENCES employees (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE attendance_reports (
+CREATE TABLE IF NOT EXISTS attendance_reports (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     attendance_record_id BIGINT UNSIGNED NOT NULL,
     report_type VARCHAR(32) NOT NULL,
@@ -110,7 +110,7 @@ CREATE TABLE attendance_reports (
         FOREIGN KEY (attendance_record_id) REFERENCES attendance_records (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE system_settings (
+CREATE TABLE IF NOT EXISTS system_settings (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     setting_key VARCHAR(128) NOT NULL,
     setting_value TEXT NOT NULL,
@@ -119,7 +119,7 @@ CREATE TABLE system_settings (
     UNIQUE KEY uk_system_settings_setting_key (setting_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO system_settings (setting_key, setting_value) VALUES
+INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES
     ('day_end_time', '23:59'),
     ('syslog_retention_days', '30'),
     ('report_target_url', ''),

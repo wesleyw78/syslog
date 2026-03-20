@@ -17,6 +17,10 @@ import (
 var openDB = sql.Open
 
 func OpenMySQL(cfg config.Config) (*sql.DB, error) {
+	if cfg.MySQLDSN != "" {
+		return openDB("mysql", cfg.MySQLDSN)
+	}
+
 	return openDB("mysql", buildMySQLDSN(cfg))
 }
 
@@ -34,7 +38,7 @@ func buildMySQLDSN(cfg config.Config) string {
 	mysqlConfig.Params = map[string]string{}
 	mysqlConfig.ParseTime = true
 	mysqlConfig.MultiStatements = true
-	mysqlConfig.Loc = time.Local
+	mysqlConfig.Loc = mustLoadLocation("Asia/Shanghai")
 
 	params := parseMySQLParams(cfg.MySQLParams)
 	if value, ok := params["charset"]; ok && value != "" {
@@ -64,6 +68,15 @@ func buildMySQLDSN(cfg config.Config) string {
 	}
 
 	return mysqlConfig.FormatDSN()
+}
+
+func mustLoadLocation(name string) *time.Location {
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		return time.UTC
+	}
+
+	return loc
 }
 
 func parseMySQLParams(raw string) map[string]string {

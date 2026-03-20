@@ -25,29 +25,31 @@ func TestLoadConfigDefaults(t *testing.T) {
 	if cfg.MySQLDatabase != "syslog" {
 		t.Fatalf("expected default mysql database syslog, got %s", cfg.MySQLDatabase)
 	}
-	if cfg.MySQLParams != "charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true" {
+	if cfg.MySQLDSN != "" {
+		t.Fatalf("expected default mysql dsn empty, got %s", cfg.MySQLDSN)
+	}
+	if cfg.MySQLParams != "charset=utf8mb4&parseTime=true&loc=Asia/Shanghai&multiStatements=true" {
 		t.Fatalf("expected default mysql params for local compose, got %s", cfg.MySQLParams)
 	}
 }
 
 func TestLoadConfigFromEnvOverrides(t *testing.T) {
 	values := map[string]string{
-		"TIMEZONE":              "UTC",
 		"SYSLOG_RETENTION_DAYS": "7",
 		"MYSQL_HOST":            "127.0.0.1",
 		"MYSQL_PORT":            "3307",
 		"MYSQL_USER":            "reader",
 		"MYSQL_PASSWORD":        "secret",
 		"MYSQL_DATABASE":        "syslog_test",
-		"MYSQL_PARAMS":          "charset=utf8mb4&parseTime=true",
+		"MYSQL_DSN":             "reader:secret@tcp(db.example.com:3306)/syslog?parseTime=true&loc=Asia%2FShanghai",
 	}
 
 	cfg := LoadConfigFromEnv(func(key string) string {
 		return values[key]
 	})
 
-	if cfg.Timezone != "UTC" {
-		t.Fatalf("expected overridden timezone UTC, got %s", cfg.Timezone)
+	if cfg.Timezone != "Asia/Shanghai" {
+		t.Fatalf("expected fixed timezone Asia/Shanghai, got %s", cfg.Timezone)
 	}
 	if cfg.SyslogRetentionDays != 7 {
 		t.Fatalf("expected overridden retention 7, got %d", cfg.SyslogRetentionDays)
@@ -67,7 +69,7 @@ func TestLoadConfigFromEnvOverrides(t *testing.T) {
 	if cfg.MySQLDatabase != "syslog_test" {
 		t.Fatalf("expected overridden mysql database syslog_test, got %s", cfg.MySQLDatabase)
 	}
-	if cfg.MySQLParams != "charset=utf8mb4&parseTime=true" {
-		t.Fatalf("expected overridden mysql params, got %s", cfg.MySQLParams)
+	if cfg.MySQLDSN != "reader:secret@tcp(db.example.com:3306)/syslog?parseTime=true&loc=Asia%2FShanghai" {
+		t.Fatalf("expected overridden mysql dsn, got %s", cfg.MySQLDSN)
 	}
 }
