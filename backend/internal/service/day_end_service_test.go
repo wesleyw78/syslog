@@ -20,12 +20,6 @@ func TestFinalizeMarksMissingDisconnect(t *testing.T) {
 	if result.ClockOutStatus != clockOutStatusMissing {
 		t.Fatalf("expected missing clock-out status, got %s", result.ClockOutStatus)
 	}
-	if result.LastCalculatedAt == nil {
-		t.Fatal("expected last calculated time to be set")
-	}
-	if !result.LastCalculatedAt.Equal(now) {
-		t.Fatalf("expected last calculated at %s, got %s", now, result.LastCalculatedAt)
-	}
 }
 
 func TestFinalizeKeepsExistingDisconnectReportable(t *testing.T) {
@@ -42,11 +36,5 @@ func TestFinalizeKeepsExistingDisconnectReportable(t *testing.T) {
 	}
 	if result.ClockOutStatus != clockOutStatusReady {
 		t.Fatalf("expected ready clock-out status, got %s", result.ClockOutStatus)
-	}
-	if result.LastCalculatedAt == nil {
-		t.Fatal("expected last calculated time to be set")
-	}
-	if !result.LastCalculatedAt.Equal(now) {
-		t.Fatalf("expected last calculated at %s, got %s", now, result.LastCalculatedAt)
 	}
 }

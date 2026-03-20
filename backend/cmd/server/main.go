@@ -8,19 +8,20 @@ import (
 	"os/signal"
 	"syscall"
 
+	"syslog/internal/bootstrap"
 	"syslog/internal/ingest"
 	"syslog/internal/scheduler"
 	"syslog/internal/service"
 )
 
 func main() {
+	app := bootstrap.New(os.Getenv)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	udpAddr := envOrDefault("UDP_LISTEN_ADDR", ":1514")
 	dayEndService := service.NewDayEndService()
 	dayEndCron := scheduler.NewCron(dayEndService)
-	udpListener := ingest.NewUDPListener(udpAddr, func(ctx context.Context, payload []byte, addr net.Addr) error {
+	udpListener := ingest.NewUDPListener("", func(ctx context.Context, payload []byte, addr net.Addr) error {
 		_ = ctx
 		_ = payload
 		_ = addr
@@ -43,15 +44,11 @@ func main() {
 		}
 	}()
 
-	log.Printf("syslog backend bootstrap ready: udp=%s, day-end scheduler=%T", udpAddr, dayEndCron)
+	log.Printf(
+		"syslog backend bootstrap ready: timezone=%s retention_days=%d scheduler=%T",
+		app.Config.Timezone,
+		app.Config.SyslogRetentionDays,
+		dayEndCron,
+	)
 	<-ctx.Done()
-}
-
-func envOrDefault(key, fallback string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return fallback
-	}
-
-	return value
 }

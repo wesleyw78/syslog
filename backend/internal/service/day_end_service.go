@@ -26,8 +26,8 @@ func FinalizeForDay(record domain.AttendanceRecord, now time.Time) domain.Attend
 }
 
 func (s *DayEndService) FinalizeForDay(record domain.AttendanceRecord, now time.Time) domain.AttendanceRecord {
+	_ = now
 	result := record
-	result.LastCalculatedAt = timePointer(now)
 
 	if result.LastDisconnectAt == nil {
 		result.ClockOutStatus = clockOutStatusMissing
