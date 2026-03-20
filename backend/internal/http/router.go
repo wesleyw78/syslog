@@ -18,3 +18,10 @@ func NewRouter(_ Dependencies) http.Handler {
 
 	return mux
 }
+
+func NewServer(addr string, deps Dependencies) *http.Server {
+	return &http.Server{
+		Addr:    addr,
+		Handler: NewRouter(deps),
+	}
+}

@@ -57,3 +57,20 @@ func TestAdminRoutesReturnOK(t *testing.T) {
 		})
 	}
 }
+
+func TestNewServerUsesAdminRouter(t *testing.T) {
+	server := httpapi.NewServer(":0", httpapi.Dependencies{})
+
+	if server.Addr != ":0" {
+		t.Fatalf("expected addr :0, got %s", server.Addr)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/attendance", nil)
+	resp := httptest.NewRecorder()
+
+	server.Handler.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, resp.Code)
+	}
+}
