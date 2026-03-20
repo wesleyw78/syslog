@@ -1,9 +1,13 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import type { EmployeeDraft } from "../../../lib/api";
 
 type EmployeeFormProps = {
+  initialValues?: EmployeeDraft;
   isSubmitting: boolean;
+  onCancel?: () => void;
+  resetOnSubmit?: boolean;
+  submitLabel?: string;
   onSubmit: (draft: EmployeeDraft) => Promise<void>;
 };
 
@@ -31,19 +35,37 @@ const buttonStyle = {
 };
 
 export function EmployeeForm({
+  initialValues,
   isSubmitting,
+  onCancel,
   onSubmit,
+  resetOnSubmit = false,
+  submitLabel = "新增员工",
 }: EmployeeFormProps) {
-  const [draft, setDraft] = useState<EmployeeDraft>({
+  const emptyDraft = {
     name: "",
     team: "",
     badge: "",
+  };
+  const [draft, setDraft] = useState<EmployeeDraft>({
+    ...emptyDraft,
+    ...initialValues,
   });
+
+  useEffect(() => {
+    setDraft({
+      ...emptyDraft,
+      ...initialValues,
+    });
+  }, [initialValues]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await onSubmit(draft);
-    setDraft({ name: "", team: "", badge: "" });
+
+    if (resetOnSubmit) {
+      setDraft(emptyDraft);
+    }
   }
 
   return (
@@ -87,9 +109,25 @@ export function EmployeeForm({
         />
       </label>
 
-      <button type="submit" disabled={isSubmitting} style={buttonStyle}>
-        {isSubmitting ? "提交中..." : "新增员工"}
-      </button>
+      <div style={{ display: "flex", gap: "0.65rem" }}>
+        <button type="submit" disabled={isSubmitting} style={buttonStyle}>
+          {isSubmitting ? "提交中..." : submitLabel}
+        </button>
+        {onCancel ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            style={{
+              ...buttonStyle,
+              border: "1px solid rgba(255, 184, 77, 0.18)",
+              background: "rgba(9, 11, 12, 0.86)",
+            }}
+          >
+            取消
+          </button>
+        ) : null}
+      </div>
     </form>
   );
 }

@@ -121,6 +121,49 @@ export async function createEmployee(draft: EmployeeDraft): Promise<Employee> {
   return wait({ ...employee });
 }
 
+export async function updateEmployee(
+  employeeId: string,
+  draft: EmployeeDraft,
+): Promise<Employee> {
+  const currentEmployee = employees.find((employee) => employee.id === employeeId);
+
+  if (!currentEmployee) {
+    throw new Error("Employee not found");
+  }
+
+  const updatedEmployee: Employee = {
+    ...currentEmployee,
+    name: draft.name.trim(),
+    team: draft.team.trim(),
+    badge: draft.badge.trim().toUpperCase(),
+  };
+
+  employees = employees.map((employee) =>
+    employee.id === employeeId ? updatedEmployee : employee,
+  );
+
+  return wait({ ...updatedEmployee });
+}
+
+export async function disableEmployee(employeeId: string): Promise<Employee> {
+  const currentEmployee = employees.find((employee) => employee.id === employeeId);
+
+  if (!currentEmployee) {
+    throw new Error("Employee not found");
+  }
+
+  const disabledEmployee: Employee = {
+    ...currentEmployee,
+    status: "Disabled",
+  };
+
+  employees = employees.map((employee) =>
+    employee.id === employeeId ? disabledEmployee : employee,
+  );
+
+  return wait({ ...disabledEmployee });
+}
+
 export async function listAttendanceRecords(): Promise<AttendanceRecord[]> {
   return wait(attendanceRecords.map((record) => ({ ...record })));
 }

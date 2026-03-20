@@ -58,7 +58,12 @@ export function AttendanceTable({
         const isException = record.status === "exception";
 
         return (
-          <div key={record.id} style={rowStyle}>
+          <div
+            key={record.id}
+            role="group"
+            aria-label={`${record.employeeName} attendance row`}
+            style={rowStyle}
+          >
             <div style={cellStyle}>
               <strong>{record.employeeName}</strong>
               <div style={{ color: "#8a928d", marginTop: "0.2rem" }}>
