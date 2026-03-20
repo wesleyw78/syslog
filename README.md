@@ -57,6 +57,8 @@ cd frontend && npm run build
 ./scripts/send-sample-syslog.sh
 ```
 
+前提：本机需要已安装 `nc`/`netcat`。
+
 只发 connect：
 
 ```bash
