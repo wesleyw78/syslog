@@ -1,0 +1,368 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Rajdhani:wght@500;600;700&display=swap");
+
+:root {
+  color-scheme: dark;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --bg: #070909;
+  --bg-elevated: rgba(18, 22, 23, 0.92);
+  --bg-panel: rgba(14, 17, 18, 0.9);
+  --line: rgba(255, 186, 77, 0.18);
+  --line-strong: rgba(255, 186, 77, 0.35);
+  --text: #edf0e8;
+  --muted: #8a928d;
+  --amber-soft: rgba(255, 184, 77, 0.18);
+  --shadow: 0 18px 44px rgba(0, 0, 0, 0.35);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(255, 184, 77, 0.14), transparent 26%),
+    radial-gradient(circle at top right, rgba(116, 216, 169, 0.12), transparent 28%),
+    linear-gradient(180deg, #121617 0%, #090b0b 55%, #050606 100%);
+  color: var(--text);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 100% 28px, 28px 100%;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.65), transparent 88%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 1rem;
+}
+
+.status-rail {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr);
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--line);
+  background: linear-gradient(135deg, rgba(20, 24, 25, 0.98), rgba(10, 12, 13, 0.88));
+  box-shadow: var(--shadow);
+}
+
+.status-rail__identity h1,
+.page-header h2,
+.panel__header h3 {
+  margin: 0;
+  font-family: "Rajdhani", sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.status-rail__identity h1 {
+  font-size: clamp(1.6rem, 3vw, 2.6rem);
+}
+
+.status-rail__eyebrow,
+.page-header__eyebrow,
+.console-nav__label,
+.panel__header span,
+.metric-card span,
+.nav-card__description {
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.status-rail__signals {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.signal-chip {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.3rem;
+  min-height: 80px;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  background: rgba(7, 9, 9, 0.78);
+}
+
+.signal-chip strong,
+.metric-card strong,
+.coverage-row strong {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 1.25rem;
+}
+
+.signal-chip--good {
+  border-color: rgba(116, 216, 169, 0.28);
+}
+
+.signal-chip--alert {
+  border-color: rgba(255, 184, 77, 0.35);
+}
+
+.shell-frame {
+  display: grid;
+  grid-template-columns: minmax(270px, 320px) minmax(0, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.console-nav {
+  display: grid;
+  gap: 1rem;
+}
+
+.console-nav__panel,
+.console-main__frame,
+.panel {
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow);
+}
+
+.console-nav__panel {
+  padding: 1.1rem;
+}
+
+.console-nav__items,
+.stack-list,
+.pulse-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.nav-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid rgba(255, 184, 77, 0.12);
+  background: linear-gradient(180deg, rgba(14, 16, 17, 0.88), rgba(8, 10, 10, 0.95));
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.nav-card:hover,
+.nav-card--active {
+  transform: translateX(4px);
+  border-color: var(--line-strong);
+  box-shadow: inset 4px 0 0 var(--amber-soft);
+}
+
+.nav-card__title {
+  font-family: "Rajdhani", sans-serif;
+  font-size: 1.15rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.console-nav__panel--pulse {
+  position: relative;
+  overflow: hidden;
+}
+
+.console-nav__panel--pulse::after {
+  content: "";
+  position: absolute;
+  inset: auto -20% -35% 30%;
+  height: 140px;
+  background: radial-gradient(circle, rgba(116, 216, 169, 0.14), transparent 72%);
+}
+
+.pulse-list,
+.stack-list {
+  margin: 0;
+  padding-left: 1rem;
+  color: #c9cec8;
+}
+
+.console-main__frame {
+  min-height: calc(100vh - 10rem);
+  padding: 1.35rem;
+  background: linear-gradient(160deg, rgba(18, 22, 23, 0.96), rgba(9, 11, 12, 0.94));
+}
+
+.page {
+  display: grid;
+  gap: 1.2rem;
+}
+
+.page-header {
+  display: grid;
+  gap: 0.4rem;
+  max-width: 56rem;
+}
+
+.page-header p,
+.panel__copy,
+.employee-card p,
+.metric-card p {
+  margin: 0;
+  color: #bcc3bd;
+  line-height: 1.5;
+}
+
+.metric-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.metric-card {
+  padding: 1rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.page-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.page-grid--dashboard {
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.9fr);
+}
+
+.page-grid--logs,
+.page-grid--split {
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.2fr);
+}
+
+.panel {
+  padding: 1rem;
+}
+
+.panel--tall {
+  min-height: 320px;
+}
+
+.panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.signal-bars {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.signal-bars span {
+  display: block;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(116, 216, 169, 0.85), rgba(255, 184, 77, 0.85));
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.filter-row span,
+.coverage-row,
+.employee-card span,
+.log-row span,
+.log-row strong {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid rgba(255, 184, 77, 0.1);
+  background: rgba(6, 8, 8, 0.65);
+}
+
+.log-table {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: 100px 130px 100px minmax(0, 1fr);
+  gap: 0.65rem;
+}
+
+.employee-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.employee-card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.9rem;
+  border: 1px solid rgba(116, 216, 169, 0.12);
+  background: rgba(8, 10, 10, 0.72);
+}
+
+.coverage-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.coverage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@media (max-width: 1080px) {
+  .status-rail,
+  .shell-frame,
+  .metric-strip,
+  .page-grid--dashboard,
+  .page-grid--logs,
+  .page-grid--split,
+  .employee-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .status-rail__signals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .app-shell {
+    padding: 0.75rem;
+  }
+
+  .status-rail,
+  .console-nav__panel,
+  .console-main__frame,
+  .panel {
+    padding: 0.9rem;
+  }
+
+  .status-rail__signals,
+  .log-row {
+    grid-template-columns: 1fr;
+  }
+}

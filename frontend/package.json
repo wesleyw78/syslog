@@ -1,9 +1,26 @@
 {
   "name": "syslog-attendance-console",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test": "vitest run"
+    "test": "node --input-type=module -e \"import { spawnSync } from 'node:child_process'; const forwarded = process.argv.slice(1).filter((arg) => arg !== '--runInBand'); const result = spawnSync(process.execPath, ['./node_modules/vitest/vitest.mjs', 'run', ...forwarded], { stdio: 'inherit' }); process.exit(result.status ?? 1);\" --"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^5.0.4",
+    "jsdom": "^26.0.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.2.0",
+    "vitest": "^3.0.5"
   }
 }
