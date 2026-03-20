@@ -151,7 +151,7 @@ export function EmployeesPage() {
           </div>
           <div className="employee-grid">
             {employees.map((employee) => (
-              <article key={employee.badge} className="employee-card">
+              <article key={employee.id} className="employee-card">
                 <strong>{employee.name}</strong>
                 <span>{employee.team}</span>
                 <span>{employee.badge}</span>

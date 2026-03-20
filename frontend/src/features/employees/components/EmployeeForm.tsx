@@ -42,6 +42,7 @@ export function EmployeeForm({
   resetOnSubmit = false,
   submitLabel = "新增员工",
 }: EmployeeFormProps) {
+  const [errorMessage, setErrorMessage] = useState("");
   const emptyDraft = {
     name: "",
     team: "",
@@ -53,6 +54,7 @@ export function EmployeeForm({
   });
 
   useEffect(() => {
+    setErrorMessage("");
     setDraft({
       ...emptyDraft,
       ...initialValues,
@@ -61,7 +63,19 @@ export function EmployeeForm({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await onSubmit(draft);
+    const nextDraft = {
+      name: draft.name.trim(),
+      team: draft.team.trim(),
+      badge: draft.badge.trim(),
+    };
+
+    if (!nextDraft.name || !nextDraft.team || !nextDraft.badge) {
+      setErrorMessage("员工字段不能只包含空白字符");
+      return;
+    }
+
+    setErrorMessage("");
+    await onSubmit(nextDraft);
 
     if (resetOnSubmit) {
       setDraft(emptyDraft);
@@ -69,7 +83,11 @@ export function EmployeeForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.9rem" }}>
+    <form
+      noValidate
+      onSubmit={handleSubmit}
+      style={{ display: "grid", gap: "0.9rem" }}
+    >
       <label style={fieldStyle}>
         <span>员工姓名</span>
         <input
@@ -79,6 +97,7 @@ export function EmployeeForm({
           onChange={(event) =>
             setDraft((current) => ({ ...current, name: event.target.value }))
           }
+          onInput={() => setErrorMessage("")}
           style={inputStyle}
         />
       </label>
@@ -92,6 +111,7 @@ export function EmployeeForm({
           onChange={(event) =>
             setDraft((current) => ({ ...current, team: event.target.value }))
           }
+          onInput={() => setErrorMessage("")}
           style={inputStyle}
         />
       </label>
@@ -105,9 +125,19 @@ export function EmployeeForm({
           onChange={(event) =>
             setDraft((current) => ({ ...current, badge: event.target.value }))
           }
+          onInput={() => setErrorMessage("")}
           style={inputStyle}
         />
       </label>
+
+      {errorMessage ? (
+        <p
+          role="alert"
+          style={{ margin: 0, color: "#ffb86b", letterSpacing: "0.03em" }}
+        >
+          {errorMessage}
+        </p>
+      ) : null}
 
       <div style={{ display: "flex", gap: "0.65rem" }}>
         <button type="submit" disabled={isSubmitting} style={buttonStyle}>

@@ -37,9 +37,7 @@ const wait = <T,>(value: T, delay = 120): Promise<T> =>
     globalThis.setTimeout(() => resolve(value), delay);
   });
 
-let employeeSeed = 4;
-
-let employees: Employee[] = [
+const initialEmployees: Employee[] = [
   {
     id: "emp-1",
     name: "Lena Wu",
@@ -63,7 +61,7 @@ let employees: Employee[] = [
   },
 ];
 
-let attendanceRecords: AttendanceRecord[] = [
+const initialAttendanceRecords: AttendanceRecord[] = [
   {
     id: "att-1",
     employeeName: "Lena Wu",
@@ -96,12 +94,29 @@ let attendanceRecords: AttendanceRecord[] = [
   },
 ];
 
-let settingsRecord: SettingsRecord = {
+const initialSettingsRecord: SettingsRecord = {
   scannerRetryThreshold: 3,
   lateToleranceMinutes: 10,
   archiveRetentionDays: 45,
   manualCorrectionRequiresApproval: true,
 };
+
+let employeeSeed = 4;
+
+let employees: Employee[] = initialEmployees.map((employee) => ({ ...employee }));
+
+let attendanceRecords: AttendanceRecord[] = initialAttendanceRecords.map((record) => ({
+  ...record,
+}));
+
+let settingsRecord: SettingsRecord = { ...initialSettingsRecord };
+
+export function resetMockData(): void {
+  employeeSeed = 4;
+  employees = initialEmployees.map((employee) => ({ ...employee }));
+  attendanceRecords = initialAttendanceRecords.map((record) => ({ ...record }));
+  settingsRecord = { ...initialSettingsRecord };
+}
 
 export async function listEmployees(): Promise<Employee[]> {
   return wait(employees.map((employee) => ({ ...employee })));
