@@ -8,7 +8,10 @@ import {
   type Employee,
   type LogItem,
 } from "../../lib/api";
-import { requiresAttendanceAttention } from "../attendance/attention";
+import {
+  getAttendanceAttentionReason,
+  requiresAttendanceAttention,
+} from "../attendance/attention";
 
 type DashboardState = {
   employees: Employee[];
@@ -28,7 +31,8 @@ function buildAttentionItems(state: DashboardState): string[] {
     .filter(requiresAttendanceAttention)
     .map((record) => {
       const employeeName = employeeMap.get(record.employeeId)?.name ?? record.employeeId;
-      return `${employeeName} ${record.attendanceDate} ${record.exceptionStatus}`;
+      const attentionReason = getAttendanceAttentionReason(record) ?? "unknown";
+      return `${employeeName} ${record.attendanceDate} ${attentionReason}`;
     });
 
   const logItems = state.logs.map((item) => {

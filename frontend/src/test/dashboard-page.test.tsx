@@ -58,6 +58,16 @@ describe("dashboard page", () => {
               createdAt: "2026-03-01T08:00:00Z",
               updatedAt: "2026-03-01T08:00:00Z",
             },
+            {
+              id: 5,
+              employeeNo: "E-005",
+              systemNo: "SYS-005",
+              name: "Omar Reed",
+              status: "active",
+              devices: [],
+              createdAt: "2026-03-01T08:00:00Z",
+              updatedAt: "2026-03-01T08:00:00Z",
+            },
           ],
         },
       },
@@ -104,6 +114,19 @@ describe("dashboard page", () => {
               sourceMode: "manual",
               version: 5,
               lastCalculatedAt: "2026-03-21T15:45:00Z",
+            },
+            {
+              id: 5005,
+              employeeId: 5,
+              attendanceDate: "2026-03-21",
+              firstConnectAt: null,
+              lastDisconnectAt: "2026-03-21T15:20:00Z",
+              clockInStatus: "pending",
+              clockOutStatus: "ready",
+              exceptionStatus: "none",
+              sourceMode: "manual",
+              version: 6,
+              lastCalculatedAt: "2026-03-21T15:25:00Z",
             },
           ],
         },
@@ -153,7 +176,7 @@ describe("dashboard page", () => {
     await waitFor(() => {
       const totalCard = screen.getByText("员工总数").closest("article");
       expect(totalCard).not.toBeNull();
-      expect(within(totalCard as HTMLElement).getByText("4")).toBeInTheDocument();
+      expect(within(totalCard as HTMLElement).getByText("5")).toBeInTheDocument();
     });
 
     const totalCard = screen.getByText("员工总数").closest("article");
@@ -165,12 +188,13 @@ describe("dashboard page", () => {
     expect(activeCard).not.toBeNull();
     expect(exceptionCard).not.toBeNull();
     expect(logCard).not.toBeNull();
-    expect(within(totalCard as HTMLElement).getByText("4")).toBeInTheDocument();
-    expect(within(activeCard as HTMLElement).getByText("3")).toBeInTheDocument();
-    expect(within(exceptionCard as HTMLElement).getByText("1")).toBeInTheDocument();
+    expect(within(totalCard as HTMLElement).getByText("5")).toBeInTheDocument();
+    expect(within(activeCard as HTMLElement).getByText("4")).toBeInTheDocument();
+    expect(within(exceptionCard as HTMLElement).getByText("2")).toBeInTheDocument();
     expect(within(logCard as HTMLElement).getByText("2")).toBeInTheDocument();
     expect(screen.getByText(/gate-1 access granted/)).toBeInTheDocument();
     expect(screen.getByText(/Arjun Patel/)).toBeInTheDocument();
+    expect(screen.getByText(/Omar Reed 2026-03-21 clock_in_pending/)).toBeInTheDocument();
     expect(screen.queryByText(/Nora King 2026-03-21 none/)).not.toBeInTheDocument();
     expect(fetchMock.mock.calls).toHaveLength(3);
     assertAllMatched();

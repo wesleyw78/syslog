@@ -43,6 +43,7 @@ function toItems(values: SettingsFormValues): SystemSetting[] {
 
 export function SettingsPage() {
   const [settings, setSettings] = useState<SettingsFormValues>(DEFAULT_VALUES);
+  const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState("加载系统设置...");
@@ -59,9 +60,11 @@ export function SettingsPage() {
         }
 
         setSettings(toValues(loadedSettings));
+        setHasLoadedSettings(true);
         setStatusMessage("已装载当前运行参数");
       } catch {
         if (isActive) {
+          setHasLoadedSettings(false);
           setStatusMessage("设置装载失败，请稍后重试");
         }
       } finally {
@@ -110,7 +113,7 @@ export function SettingsPage() {
           <div style={{ marginTop: "1rem" }}>
             <SettingsForm
               initialValues={settings}
-              isDisabled={isLoading}
+              isDisabled={isLoading || !hasLoadedSettings}
               isSaving={isSaving}
               onSubmit={handleSave}
             />

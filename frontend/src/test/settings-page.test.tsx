@@ -147,4 +147,22 @@ describe("settings page", () => {
 
     expect(await screen.findByText("设置数值不合法")).toBeInTheDocument();
   });
+
+  it("keeps save disabled when the initial settings load fails", async () => {
+    mockJsonFetch([
+      {
+        method: "GET",
+        path: "/api/settings",
+        response: { message: "boom" },
+        status: 500,
+      },
+    ]);
+
+    render(<SettingsPage />);
+
+    expect(await screen.findByText("设置装载失败，请稍后重试")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "保存设置" }),
+    ).toBeDisabled();
+  });
 });

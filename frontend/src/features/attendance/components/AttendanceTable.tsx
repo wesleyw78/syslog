@@ -1,5 +1,8 @@
 import type { AttendanceRecord } from "../../../lib/api";
-import { requiresAttendanceAttention } from "../attention";
+import {
+  getAttendanceAttentionReason,
+  requiresAttendanceAttention,
+} from "../attention";
 
 type AttendanceDraft = {
   firstConnectAt: string;
@@ -86,6 +89,7 @@ export function AttendanceTable({
       {records.map((record) => {
         const isPending = pendingId === record.id;
         const isActionable = requiresAttendanceAttention(record);
+        const attentionReason = getAttendanceAttentionReason(record);
         const draft = drafts[record.id] ?? {
           firstConnectAt: record.firstConnectAt ?? "",
           lastDisconnectAt: record.lastDisconnectAt ?? "",
@@ -146,7 +150,7 @@ export function AttendanceTable({
             <div style={cellStyle}>{getStatusLabel(record)}</div>
 
             <div style={cellStyle}>
-              {record.exceptionStatus === "none" ? "无异常" : record.exceptionStatus}
+              {attentionReason ?? "无异常"}
             </div>
 
             <div style={cellStyle}>{record.sourceMode}</div>

@@ -48,6 +48,16 @@ describe("attendance page", () => {
               createdAt: "2026-03-01T08:00:00Z",
               updatedAt: "2026-03-01T08:00:00Z",
             },
+            {
+              id: 4,
+              employeeNo: "E-004",
+              systemNo: "SYS-004",
+              name: "Omar Reed",
+              status: "active",
+              devices: [],
+              createdAt: "2026-03-01T08:00:00Z",
+              updatedAt: "2026-03-01T08:00:00Z",
+            },
           ],
         },
       },
@@ -94,6 +104,19 @@ describe("attendance page", () => {
               sourceMode: "manual",
               version: 4,
               lastCalculatedAt: "2026-03-21T15:10:00Z",
+            },
+            {
+              id: 4004,
+              employeeId: 4,
+              attendanceDate: "2026-03-21",
+              firstConnectAt: null,
+              lastDisconnectAt: "2026-03-21T15:20:00Z",
+              clockInStatus: "pending",
+              clockOutStatus: "ready",
+              exceptionStatus: "none",
+              sourceMode: "manual",
+              version: 5,
+              lastCalculatedAt: "2026-03-21T15:25:00Z",
             },
           ],
         },
@@ -146,6 +169,15 @@ describe("attendance page", () => {
       within(resolvedManualRow).queryByRole("button", { name: "提交修正" }),
     ).not.toBeInTheDocument();
     expect(within(resolvedManualRow).getByText("无需处理")).toBeInTheDocument();
+
+    const pendingClockInRow = await screen.findByRole("group", {
+      name: /Omar Reed 考勤记录/i,
+    });
+    expect(within(pendingClockInRow).getByText("manual")).toBeInTheDocument();
+    expect(within(pendingClockInRow).getByText("clock_in_pending")).toBeInTheDocument();
+    expect(
+      within(pendingClockInRow).getByRole("button", { name: "提交修正" }),
+    ).toBeInTheDocument();
 
     fireEvent.change(within(correctedRow).getByLabelText("首次接入"), {
       target: { value: "2026-03-21T06:18:00Z" },
