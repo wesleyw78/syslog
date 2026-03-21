@@ -52,10 +52,10 @@ describe("attendance page", () => {
               attendanceDate: "2026-03-21",
               firstConnectAt: "2026-03-21T06:02:00Z",
               lastDisconnectAt: "2026-03-21T14:00:00Z",
-              clockInStatus: "normal",
-              clockOutStatus: "normal",
-              exceptionStatus: "clear",
-              sourceMode: "auto",
+              clockInStatus: "done",
+              clockOutStatus: "ready",
+              exceptionStatus: "none",
+              sourceMode: "syslog",
               version: 1,
               lastCalculatedAt: "2026-03-21T14:01:00Z",
             },
@@ -65,10 +65,10 @@ describe("attendance page", () => {
               attendanceDate: "2026-03-21",
               firstConnectAt: "2026-03-21T06:14:00Z",
               lastDisconnectAt: null,
-              clockInStatus: "late",
-              clockOutStatus: "pending",
-              exceptionStatus: "open",
-              sourceMode: "scanner",
+              clockInStatus: "done",
+              clockOutStatus: "missing",
+              exceptionStatus: "missing_disconnect",
+              sourceMode: "syslog",
               version: 2,
               lastCalculatedAt: "2026-03-21T14:10:00Z",
             },
@@ -85,10 +85,10 @@ describe("attendance page", () => {
             attendanceDate: "2026-03-21",
             firstConnectAt: "2026-03-21T06:18:00Z",
             lastDisconnectAt: null,
-            clockInStatus: "late",
-            clockOutStatus: "pending",
-            exceptionStatus: "corrected",
-            sourceMode: "scanner",
+            clockInStatus: "done",
+            clockOutStatus: "missing",
+            exceptionStatus: "missing_disconnect",
+            sourceMode: "manual",
             version: 3,
             lastCalculatedAt: "2026-03-21T14:20:00Z",
           },
@@ -110,8 +110,8 @@ describe("attendance page", () => {
     });
 
     expect(within(correctedRow).getByText("Arjun Patel")).toBeInTheDocument();
-    expect(within(correctedRow).getByText(/late \/ pending/)).toBeInTheDocument();
-    expect(within(correctedRow).getByText("open")).toBeInTheDocument();
+    expect(within(correctedRow).getByText(/done \/ missing/)).toBeInTheDocument();
+    expect(within(correctedRow).getByText("missing_disconnect")).toBeInTheDocument();
     expect(within(correctedRow).getByRole("button", { name: "提交修正" })).toBeInTheDocument();
 
     fireEvent.change(within(correctedRow).getByLabelText("首次接入"), {
@@ -122,7 +122,7 @@ describe("attendance page", () => {
     });
     fireEvent.click(within(correctedRow).getByRole("button", { name: "提交修正" }));
 
-    expect(await within(correctedRow).findByText("corrected")).toBeInTheDocument();
+    expect(await within(correctedRow).findByText("manual")).toBeInTheDocument();
     expect(
       await screen.findByText("已提交 Arjun Patel 的人工修正"),
     ).toBeInTheDocument();

@@ -25,7 +25,11 @@ function buildAttentionItems(state: DashboardState): string[] {
   const employeeMap = new Map(state.employees.map((employee) => [employee.id, employee]));
   const attendanceItems = state.attendance
     .filter(
-      (record) => record.exceptionStatus !== "clear" && record.exceptionStatus !== "normal",
+      (record) =>
+        record.exceptionStatus !== "none" ||
+        record.clockOutStatus === "pending" ||
+        record.clockOutStatus === "missing" ||
+        record.sourceMode === "manual",
     )
     .map((record) => {
       const employeeName = employeeMap.get(record.employeeId)?.name ?? record.employeeId;
@@ -97,8 +101,12 @@ export function DashboardPage() {
     const activeEmployees = state.employees.filter(
       (employee) => employee.status !== "disabled",
     ).length;
-    const exceptionCount = state.attendance.filter(
-      (record) => record.exceptionStatus !== "clear" && record.exceptionStatus !== "normal",
+    const attentionCount = state.attendance.filter(
+      (record) =>
+        record.exceptionStatus !== "none" ||
+        record.clockOutStatus === "pending" ||
+        record.clockOutStatus === "missing" ||
+        record.sourceMode === "manual",
     ).length;
     const recentLogs = state.logs.length;
 
@@ -114,9 +122,9 @@ export function DashboardPage() {
         status: totalEmployees > 0 ? `${Math.round((activeEmployees / totalEmployees) * 100)}% 在线` : "暂无员工",
       },
       {
-        label: "异常考勤",
-        value: String(exceptionCount),
-        status: exceptionCount > 0 ? "需要人工复核" : "当前无异常",
+        label: "待处理考勤",
+        value: String(attentionCount),
+        status: attentionCount > 0 ? "需要人工复核" : "当前无待处理记录",
       },
       {
         label: "最近日志",
@@ -136,7 +144,11 @@ export function DashboardPage() {
     const attendanceHealth = state.attendance.length
       ? 1 -
         state.attendance.filter(
-          (record) => record.exceptionStatus !== "clear" && record.exceptionStatus !== "normal",
+          (record) =>
+            record.exceptionStatus !== "none" ||
+            record.clockOutStatus === "pending" ||
+            record.clockOutStatus === "missing" ||
+            record.sourceMode === "manual",
         ).length /
           state.attendance.length
       : 0.5;

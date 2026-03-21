@@ -66,19 +66,17 @@ export function AttendancePage() {
   }, []);
 
   const attendanceBands = useMemo(() => {
-    const total = records.length || 1;
-    const onTimeCount = records.filter((record) => record.clockInStatus === "normal").length;
-    const exceptionCount = records.filter(
-      (record) => record.exceptionStatus !== "clear" && record.exceptionStatus !== "normal",
+    const clockInCount = records.filter((record) => record.firstConnectAt).length;
+    const pendingClockOutCount = records.filter(
+      (record) =>
+        record.clockOutStatus === "pending" || record.clockOutStatus === "missing",
     ).length;
-    const correctedCount = records.filter(
-      (record) => record.exceptionStatus === "corrected",
-    ).length;
+    const manualCount = records.filter((record) => record.sourceMode === "manual").length;
 
     return [
-      { label: "准点率", value: `${Math.round((onTimeCount / total) * 100)}%` },
-      { label: "异常数", value: `${exceptionCount}` },
-      { label: "已修正", value: `${correctedCount}` },
+      { label: "已记录上班", value: `${clockInCount}` },
+      { label: "待确认下班", value: `${pendingClockOutCount}` },
+      { label: "人工修正", value: `${manualCount}` },
     ];
   }, [records]);
 

@@ -62,10 +62,10 @@ describe("dashboard page", () => {
               attendanceDate: "2026-03-21",
               firstConnectAt: "2026-03-21T06:02:00Z",
               lastDisconnectAt: "2026-03-21T14:00:00Z",
-              clockInStatus: "normal",
-              clockOutStatus: "normal",
-              exceptionStatus: "clear",
-              sourceMode: "auto",
+              clockInStatus: "done",
+              clockOutStatus: "ready",
+              exceptionStatus: "none",
+              sourceMode: "syslog",
               version: 1,
               lastCalculatedAt: "2026-03-21T14:01:00Z",
             },
@@ -75,10 +75,10 @@ describe("dashboard page", () => {
               attendanceDate: "2026-03-21",
               firstConnectAt: "2026-03-21T06:14:00Z",
               lastDisconnectAt: null,
-              clockInStatus: "late",
-              clockOutStatus: "pending",
-              exceptionStatus: "open",
-              sourceMode: "scanner",
+              clockInStatus: "done",
+              clockOutStatus: "missing",
+              exceptionStatus: "missing_disconnect",
+              sourceMode: "syslog",
               version: 2,
               lastCalculatedAt: "2026-03-21T14:10:00Z",
             },
@@ -135,7 +135,7 @@ describe("dashboard page", () => {
 
     const totalCard = screen.getByText("员工总数").closest("article");
     const activeCard = screen.getByText("在岗员工").closest("article");
-    const exceptionCard = screen.getByText("异常考勤").closest("article");
+    const exceptionCard = screen.getByText("待处理考勤").closest("article");
     const logCard = screen.getByText("最近日志").closest("article");
 
     expect(totalCard).not.toBeNull();

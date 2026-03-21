@@ -55,6 +55,15 @@ function getStatusLabel(record: AttendanceRecord): string {
   return `${record.clockInStatus} / ${record.clockOutStatus}`;
 }
 
+function requiresAttention(record: AttendanceRecord): boolean {
+  return (
+    record.exceptionStatus !== "none" ||
+    record.clockOutStatus === "pending" ||
+    record.clockOutStatus === "missing" ||
+    record.sourceMode === "manual"
+  );
+}
+
 export function AttendanceTable({
   drafts,
   pendingId,
@@ -84,7 +93,7 @@ export function AttendanceTable({
 
       {records.map((record) => {
         const isPending = pendingId === record.id;
-        const isException = record.exceptionStatus !== "clear";
+        const isActionable = requiresAttention(record);
         const draft = drafts[record.id] ?? {
           firstConnectAt: record.firstConnectAt ?? "",
           lastDisconnectAt: record.lastDisconnectAt ?? "",
@@ -105,7 +114,7 @@ export function AttendanceTable({
             </div>
 
             <div style={cellStyle}>
-              {isException ? (
+              {isActionable ? (
                 <label style={{ display: "grid", gap: "0.25rem" }}>
                   <span>{`${record.employeeName} 首次接入`}</span>
                   <input
@@ -124,7 +133,7 @@ export function AttendanceTable({
             </div>
 
             <div style={cellStyle}>
-              {isException ? (
+              {isActionable ? (
                 <label style={{ display: "grid", gap: "0.25rem" }}>
                   <span>{`${record.employeeName} 最后断开`}</span>
                   <input
@@ -144,12 +153,14 @@ export function AttendanceTable({
 
             <div style={cellStyle}>{getStatusLabel(record)}</div>
 
-            <div style={cellStyle}>{record.exceptionStatus}</div>
+            <div style={cellStyle}>
+              {record.exceptionStatus === "none" ? "无异常" : record.exceptionStatus}
+            </div>
 
             <div style={cellStyle}>{record.sourceMode}</div>
 
             <div style={cellStyle}>
-              {isException ? (
+              {isActionable ? (
                 <button
                   type="button"
                   onClick={() => void onManualCorrection(record.id)}
@@ -159,7 +170,7 @@ export function AttendanceTable({
                   {isPending ? "提交中..." : "提交修正"}
                 </button>
               ) : (
-                <span>{record.exceptionStatus === "corrected" ? "已归档" : "无需处理"}</span>
+                <span>无需处理</span>
               )}
             </div>
           </div>
