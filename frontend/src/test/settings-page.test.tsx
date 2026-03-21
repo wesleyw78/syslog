@@ -11,6 +11,35 @@ afterEach(() => {
 });
 
 describe("settings page", () => {
+  it("keeps the form disabled until settings are loaded", async () => {
+    mockJsonFetch([
+      {
+        method: "GET",
+        path: "/api/settings",
+        response: {
+          items: [
+            { ID: 1, SettingKey: "day_end_time", SettingValue: "18:30" },
+            { ID: 2, SettingKey: "syslog_retention_days", SettingValue: "45" },
+            { ID: 3, SettingKey: "report_target_url", SettingValue: "https://reports.example.com/inbox" },
+            { ID: 4, SettingKey: "report_timeout_seconds", SettingValue: "30" },
+            { ID: 5, SettingKey: "report_retry_limit", SettingValue: "5" },
+          ],
+        },
+      },
+    ]);
+
+    render(<SettingsPage />);
+
+    expect(
+      screen.getByRole("button", { name: "保存设置" }),
+    ).toBeDisabled();
+
+    expect(await screen.findByText("已装载当前运行参数")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "保存设置" }),
+    ).not.toBeDisabled();
+  });
+
   it("loads settings and saves the mapped API payload", async () => {
     const { fetchMock, requests } = mockJsonFetch([
       {

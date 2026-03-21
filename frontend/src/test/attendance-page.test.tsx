@@ -12,7 +12,7 @@ afterEach(() => {
 
 describe("attendance page", () => {
   it("joins attendance records with employees and posts correction payloads", async () => {
-    const { fetchMock } = mockJsonFetch([
+    const { assertAllMatched, fetchMock } = mockJsonFetch([
       {
         method: "GET",
         path: "/api/employees",
@@ -33,6 +33,16 @@ describe("attendance page", () => {
               employeeNo: "E-002",
               systemNo: "SYS-002",
               name: "Arjun Patel",
+              status: "active",
+              devices: [],
+              createdAt: "2026-03-01T08:00:00Z",
+              updatedAt: "2026-03-01T08:00:00Z",
+            },
+            {
+              id: 3,
+              employeeNo: "E-003",
+              systemNo: "SYS-003",
+              name: "Mina Torres",
               status: "active",
               devices: [],
               createdAt: "2026-03-01T08:00:00Z",
@@ -71,6 +81,19 @@ describe("attendance page", () => {
               sourceMode: "syslog",
               version: 2,
               lastCalculatedAt: "2026-03-21T14:10:00Z",
+            },
+            {
+              id: 3003,
+              employeeId: 3,
+              attendanceDate: "2026-03-21",
+              firstConnectAt: "2026-03-21T06:20:00Z",
+              lastDisconnectAt: "2026-03-21T15:00:00Z",
+              clockInStatus: "done",
+              clockOutStatus: "ready",
+              exceptionStatus: "none",
+              sourceMode: "manual",
+              version: 4,
+              lastCalculatedAt: "2026-03-21T15:10:00Z",
             },
           ],
         },
@@ -114,6 +137,16 @@ describe("attendance page", () => {
     expect(within(correctedRow).getByText("missing_disconnect")).toBeInTheDocument();
     expect(within(correctedRow).getByRole("button", { name: "提交修正" })).toBeInTheDocument();
 
+    const resolvedManualRow = await screen.findByRole("group", {
+      name: /Mina Torres 考勤记录/i,
+    });
+    expect(within(resolvedManualRow).getByText("manual")).toBeInTheDocument();
+    expect(within(resolvedManualRow).getByText("无异常")).toBeInTheDocument();
+    expect(
+      within(resolvedManualRow).queryByRole("button", { name: "提交修正" }),
+    ).not.toBeInTheDocument();
+    expect(within(resolvedManualRow).getByText("无需处理")).toBeInTheDocument();
+
     fireEvent.change(within(correctedRow).getByLabelText("首次接入"), {
       target: { value: "2026-03-21T06:18:00Z" },
     });
@@ -127,6 +160,7 @@ describe("attendance page", () => {
       await screen.findByText("已提交 Arjun Patel 的人工修正"),
     ).toBeInTheDocument();
     expect(fetchMock.mock.calls).toHaveLength(3);
+    assertAllMatched();
   });
 
   it("shows a loading error when attendance cannot be fetched", async () => {

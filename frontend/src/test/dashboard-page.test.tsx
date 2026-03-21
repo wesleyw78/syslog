@@ -12,7 +12,7 @@ afterEach(() => {
 
 describe("dashboard page", () => {
   it("derives summary cards and watch items from live API data", async () => {
-    const { fetchMock } = mockJsonFetch([
+    const { assertAllMatched, fetchMock } = mockJsonFetch([
       {
         method: "GET",
         path: "/api/employees",
@@ -44,6 +44,16 @@ describe("dashboard page", () => {
               systemNo: "SYS-003",
               name: "Mina Torres",
               status: "disabled",
+              devices: [],
+              createdAt: "2026-03-01T08:00:00Z",
+              updatedAt: "2026-03-01T08:00:00Z",
+            },
+            {
+              id: 4,
+              employeeNo: "E-004",
+              systemNo: "SYS-004",
+              name: "Nora King",
+              status: "active",
               devices: [],
               createdAt: "2026-03-01T08:00:00Z",
               updatedAt: "2026-03-01T08:00:00Z",
@@ -81,6 +91,19 @@ describe("dashboard page", () => {
               sourceMode: "syslog",
               version: 2,
               lastCalculatedAt: "2026-03-21T14:10:00Z",
+            },
+            {
+              id: 4004,
+              employeeId: 4,
+              attendanceDate: "2026-03-21",
+              firstConnectAt: "2026-03-21T06:30:00Z",
+              lastDisconnectAt: "2026-03-21T15:40:00Z",
+              clockInStatus: "done",
+              clockOutStatus: "ready",
+              exceptionStatus: "none",
+              sourceMode: "manual",
+              version: 5,
+              lastCalculatedAt: "2026-03-21T15:45:00Z",
             },
           ],
         },
@@ -130,7 +153,7 @@ describe("dashboard page", () => {
     await waitFor(() => {
       const totalCard = screen.getByText("员工总数").closest("article");
       expect(totalCard).not.toBeNull();
-      expect(within(totalCard as HTMLElement).getByText("3")).toBeInTheDocument();
+      expect(within(totalCard as HTMLElement).getByText("4")).toBeInTheDocument();
     });
 
     const totalCard = screen.getByText("员工总数").closest("article");
@@ -142,12 +165,14 @@ describe("dashboard page", () => {
     expect(activeCard).not.toBeNull();
     expect(exceptionCard).not.toBeNull();
     expect(logCard).not.toBeNull();
-    expect(within(totalCard as HTMLElement).getByText("3")).toBeInTheDocument();
-    expect(within(activeCard as HTMLElement).getByText("2")).toBeInTheDocument();
+    expect(within(totalCard as HTMLElement).getByText("4")).toBeInTheDocument();
+    expect(within(activeCard as HTMLElement).getByText("3")).toBeInTheDocument();
     expect(within(exceptionCard as HTMLElement).getByText("1")).toBeInTheDocument();
     expect(within(logCard as HTMLElement).getByText("2")).toBeInTheDocument();
     expect(screen.getByText(/gate-1 access granted/)).toBeInTheDocument();
     expect(screen.getByText(/Arjun Patel/)).toBeInTheDocument();
+    expect(screen.queryByText(/Nora King 2026-03-21 none/)).not.toBeInTheDocument();
     expect(fetchMock.mock.calls).toHaveLength(3);
+    assertAllMatched();
   });
 });

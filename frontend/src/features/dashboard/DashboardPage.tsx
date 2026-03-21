@@ -8,6 +8,7 @@ import {
   type Employee,
   type LogItem,
 } from "../../lib/api";
+import { requiresAttendanceAttention } from "../attendance/attention";
 
 type DashboardState = {
   employees: Employee[];
@@ -24,13 +25,7 @@ type DashboardMetric = {
 function buildAttentionItems(state: DashboardState): string[] {
   const employeeMap = new Map(state.employees.map((employee) => [employee.id, employee]));
   const attendanceItems = state.attendance
-    .filter(
-      (record) =>
-        record.exceptionStatus !== "none" ||
-        record.clockOutStatus === "pending" ||
-        record.clockOutStatus === "missing" ||
-        record.sourceMode === "manual",
-    )
+    .filter(requiresAttendanceAttention)
     .map((record) => {
       const employeeName = employeeMap.get(record.employeeId)?.name ?? record.employeeId;
       return `${employeeName} ${record.attendanceDate} ${record.exceptionStatus}`;
@@ -102,11 +97,7 @@ export function DashboardPage() {
       (employee) => employee.status !== "disabled",
     ).length;
     const attentionCount = state.attendance.filter(
-      (record) =>
-        record.exceptionStatus !== "none" ||
-        record.clockOutStatus === "pending" ||
-        record.clockOutStatus === "missing" ||
-        record.sourceMode === "manual",
+      requiresAttendanceAttention,
     ).length;
     const recentLogs = state.logs.length;
 
@@ -144,11 +135,7 @@ export function DashboardPage() {
     const attendanceHealth = state.attendance.length
       ? 1 -
         state.attendance.filter(
-          (record) =>
-            record.exceptionStatus !== "none" ||
-            record.clockOutStatus === "pending" ||
-            record.clockOutStatus === "missing" ||
-            record.sourceMode === "manual",
+          requiresAttendanceAttention,
         ).length /
           state.attendance.length
       : 0.5;

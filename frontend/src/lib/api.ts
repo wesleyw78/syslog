@@ -119,9 +119,22 @@ function stringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+function stringIdValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  return "";
+}
+
 function optionalStringValue(value: unknown): string | null | undefined {
   if (typeof value === "string") {
     return value;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
   }
   if (value === null) {
     return null;
@@ -178,56 +191,109 @@ function normalizeLogItem(value: unknown): LogItem {
   };
 }
 
+function normalizeEmployeeDevice(value: unknown): EmployeeDevice {
+  const raw = (value ?? {}) as Record<string, unknown>;
+
+  return {
+    macAddress: stringValue(raw.macAddress ?? raw.MacAddress),
+    deviceLabel: stringValue(raw.deviceLabel ?? raw.DeviceLabel),
+    status: stringValue(raw.status ?? raw.Status),
+  };
+}
+
+function normalizeEmployee(value: unknown): Employee {
+  const raw = (value ?? {}) as Record<string, unknown>;
+
+  return {
+    id: stringIdValue(raw.id ?? raw.ID),
+    employeeNo: stringValue(raw.employeeNo ?? raw.EmployeeNo),
+    systemNo: stringValue(raw.systemNo ?? raw.SystemNo),
+    name: stringValue(raw.name ?? raw.Name),
+    status: stringValue(raw.status ?? raw.Status),
+    devices: Array.isArray(raw.devices ?? raw.Devices)
+      ? ((raw.devices ?? raw.Devices) as unknown[]).map(normalizeEmployeeDevice)
+      : [],
+    createdAt: stringValue(raw.createdAt ?? raw.CreatedAt),
+    updatedAt: stringValue(raw.updatedAt ?? raw.UpdatedAt),
+  };
+}
+
+function normalizeAttendanceRecord(value: unknown): AttendanceRecord {
+  const raw = (value ?? {}) as Record<string, unknown>;
+
+  return {
+    id: stringIdValue(raw.id ?? raw.ID),
+    employeeId: stringIdValue(raw.employeeId ?? raw.EmployeeID),
+    attendanceDate: stringValue(raw.attendanceDate ?? raw.AttendanceDate),
+    firstConnectAt: optionalStringValue(raw.firstConnectAt ?? raw.FirstConnectAt),
+    lastDisconnectAt: optionalStringValue(raw.lastDisconnectAt ?? raw.LastDisconnectAt),
+    clockInStatus: stringValue(raw.clockInStatus ?? raw.ClockInStatus),
+    clockOutStatus: stringValue(raw.clockOutStatus ?? raw.ClockOutStatus),
+    exceptionStatus: stringValue(raw.exceptionStatus ?? raw.ExceptionStatus),
+    sourceMode: stringValue(raw.sourceMode ?? raw.SourceMode),
+    version: typeof raw.version === "number" ? raw.version : 0,
+    lastCalculatedAt: optionalStringValue(raw.lastCalculatedAt ?? raw.LastCalculatedAt),
+  };
+}
+
 export async function getEmployees(): Promise<Employee[]> {
-  const response = await apiFetch<ListResponse<Employee>>("/employees");
-  return parseListResponse(response);
+  const response = await apiFetch<ListResponse<unknown>>("/employees");
+  return parseListResponse(response).map(normalizeEmployee);
 }
 
 export async function createEmployee(input: EmployeeUpsertInput): Promise<Employee> {
-  const response = await apiFetch<{ employee: Employee }>("/employees", {
+  const response = await apiFetch<{ employee: unknown }>("/employees", {
     method: "POST",
     body: JSON.stringify(input),
   });
 
-  return response.employee;
+  return normalizeEmployee(response.employee);
 }
 
 export async function updateEmployee(
   employeeId: string,
   input: EmployeeUpsertInput,
 ): Promise<Employee> {
-  const response = await apiFetch<{ employee: Employee }>(`/employees/${employeeId}`, {
+  const response = await apiFetch<{ employee: unknown }>(`/employees/${employeeId}`, {
     method: "PUT",
     body: JSON.stringify(input),
   });
 
-  return response.employee;
+  return normalizeEmployee(response.employee);
 }
 
 export async function disableEmployee(employeeId: string): Promise<Employee> {
-  const response = await apiFetch<{ employee: Employee }>(`/employees/${employeeId}/disable`, {
-    method: "POST",
-  });
+  const response = await apiFetch<{ employee: unknown }>(
+    `/employees/${employeeId}/disable`,
+    {
+      method: "POST",
+    },
+  );
 
-  return response.employee;
+  return normalizeEmployee(response.employee);
 }
 
 export async function getAttendanceRecords(): Promise<AttendanceRecord[]> {
-  const response = await apiFetch<ListResponse<AttendanceRecord>>("/attendance");
-  return parseListResponse(response);
+  const response = await apiFetch<ListResponse<unknown>>("/attendance");
+  return parseListResponse(response).map(normalizeAttendanceRecord);
 }
 
 export async function correctAttendanceRecord(
   recordId: string,
   input: AttendanceCorrectionInput,
 ): Promise<{ attendance: AttendanceRecord; reports: unknown[] }> {
-  return apiFetch<{ attendance: AttendanceRecord; reports: unknown[] }>(
+  const response = await apiFetch<{ attendance: unknown; reports: unknown[] }>(
     `/attendance/${recordId}/correction`,
     {
       method: "POST",
       body: JSON.stringify(input),
     },
   );
+
+  return {
+    attendance: normalizeAttendanceRecord(response.attendance),
+    reports: Array.isArray(response.reports) ? response.reports : [],
+  };
 }
 
 export async function getSettings(): Promise<SystemSetting[]> {

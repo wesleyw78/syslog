@@ -9,6 +9,7 @@ type SettingsFormValues = {
 };
 
 type SettingsFormProps = {
+  isDisabled: boolean;
   initialValues: SettingsFormValues;
   isSaving: boolean;
   onSubmit: (values: SettingsFormValues) => Promise<void>;
@@ -42,6 +43,7 @@ function isInteger(value: string, minimum: number): boolean {
 }
 
 export function SettingsForm({
+  isDisabled,
   initialValues,
   isSaving,
   onSubmit,
@@ -89,6 +91,7 @@ export function SettingsForm({
           name="dayEndTime"
           type="time"
           defaultValue={initialValues.dayEndTime}
+          disabled={isDisabled}
           onInput={() => setErrorMessage("")}
           style={inputStyle}
           step={60}
@@ -102,6 +105,7 @@ export function SettingsForm({
           min={1}
           type="number"
           defaultValue={initialValues.retentionDays}
+          disabled={isDisabled}
           onInput={() => setErrorMessage("")}
           style={inputStyle}
         />
@@ -113,6 +117,7 @@ export function SettingsForm({
           name="reportTargetUrl"
           type="text"
           defaultValue={initialValues.reportTargetUrl}
+          disabled={isDisabled}
           onInput={() => setErrorMessage("")}
           style={inputStyle}
         />
@@ -125,6 +130,7 @@ export function SettingsForm({
           min={1}
           type="number"
           defaultValue={initialValues.reportTimeoutSeconds}
+          disabled={isDisabled}
           onInput={() => setErrorMessage("")}
           style={inputStyle}
         />
@@ -137,6 +143,7 @@ export function SettingsForm({
           min={0}
           type="number"
           defaultValue={initialValues.reportRetryLimit}
+          disabled={isDisabled}
           onInput={() => setErrorMessage("")}
           style={inputStyle}
         />
@@ -151,7 +158,7 @@ export function SettingsForm({
         </p>
       ) : null}
 
-      <button type="submit" disabled={isSaving} style={buttonStyle}>
+      <button type="submit" disabled={isSaving || isDisabled} style={buttonStyle}>
         {isSaving ? "保存中..." : "保存设置"}
       </button>
     </form>

@@ -1,4 +1,5 @@
 import type { AttendanceRecord } from "../../../lib/api";
+import { requiresAttendanceAttention } from "../attention";
 
 type AttendanceDraft = {
   firstConnectAt: string;
@@ -55,15 +56,6 @@ function getStatusLabel(record: AttendanceRecord): string {
   return `${record.clockInStatus} / ${record.clockOutStatus}`;
 }
 
-function requiresAttention(record: AttendanceRecord): boolean {
-  return (
-    record.exceptionStatus !== "none" ||
-    record.clockOutStatus === "pending" ||
-    record.clockOutStatus === "missing" ||
-    record.sourceMode === "manual"
-  );
-}
-
 export function AttendanceTable({
   drafts,
   pendingId,
@@ -93,7 +85,7 @@ export function AttendanceTable({
 
       {records.map((record) => {
         const isPending = pendingId === record.id;
-        const isActionable = requiresAttention(record);
+        const isActionable = requiresAttendanceAttention(record);
         const draft = drafts[record.id] ?? {
           firstConnectAt: record.firstConnectAt ?? "",
           lastDisconnectAt: record.lastDisconnectAt ?? "",
