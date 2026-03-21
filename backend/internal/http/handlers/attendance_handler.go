@@ -57,11 +57,6 @@ func endOfDay(value time.Time) time.Time {
 	return time.Date(y, m, d, 23, 59, 59, 999999999, asiaShanghai)
 }
 
-type attendanceCorrectionRequest struct {
-	FirstConnectAt   *time.Time `json:"firstConnectAt"`
-	LastDisconnectAt *time.Time `json:"lastDisconnectAt"`
-}
-
 func NewAttendanceCorrectionHandler(admin AttendanceCorrectionWriter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if admin == nil {
@@ -75,16 +70,13 @@ func NewAttendanceCorrectionHandler(admin AttendanceCorrectionWriter) http.Handl
 			return
 		}
 
-		var req attendanceCorrectionRequest
+		var req service.AttendanceCorrectionInput
 		if err := decodeJSONBody(r, &req); err != nil {
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}
 
-		result, err := admin.CorrectAttendance(r.Context(), id, service.AttendanceCorrectionInput{
-			FirstConnectAt:   req.FirstConnectAt,
-			LastDisconnectAt: req.LastDisconnectAt,
-		})
+		result, err := admin.CorrectAttendance(r.Context(), id, req)
 		if err != nil {
 			status := statusCodeForServiceError(err)
 			http.Error(w, http.StatusText(status), status)

@@ -67,7 +67,7 @@ func New(getenv func(string) string) (App, error) {
 	}
 	app.Services.EmployeeAdmin = service.NewEmployeeAdminService(db, app.Repositories.Employees)
 	app.Services.SettingsAdmin = service.NewSettingsAdminService(db, app.Repositories.Settings)
-	app.Services.AttendanceAdmin = service.NewAttendanceAdminService(db, app.Repositories.Attendance, app.Repositories.Reports, service.NewReportService())
+	app.Services.AttendanceAdmin = service.NewAttendanceAdminService(db, app.Repositories.Attendance, app.Repositories.Reports, app.Repositories.Settings, service.NewReportService())
 	app.Services.SyslogPipeline = service.NewSyslogPipeline(service.SyslogPipelineDeps{
 		DB:            db,
 		Messages:      app.Repositories.SyslogMessages,

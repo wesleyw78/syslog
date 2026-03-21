@@ -191,7 +191,7 @@ func TestAdminWriteRoutes(t *testing.T) {
 		if resp.Code != http.StatusOK {
 			t.Fatalf("expected ok status, got %d", resp.Code)
 		}
-		if fakeAttendance.id != 55 || fakeAttendance.input.FirstConnectAt == nil {
+		if fakeAttendance.id != 55 || !fakeAttendance.input.FirstConnectAt.Provided || !fakeAttendance.input.FirstConnectAt.Valid {
 			t.Fatalf("unexpected attendance correction input: id=%d input=%+v", fakeAttendance.id, fakeAttendance.input)
 		}
 		var payload struct {

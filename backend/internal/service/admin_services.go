@@ -1,8 +1,10 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -254,9 +256,53 @@ func (s *SettingsAdminService) UpdateSettings(ctx context.Context, items []Setti
 	return current, nil
 }
 
+type OptionalTimeField struct {
+	Provided bool
+	Valid    bool
+	Value    *time.Time
+}
+
+func (f *OptionalTimeField) UnmarshalJSON(data []byte) error {
+	f.Provided = true
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		f.Valid = false
+		f.Value = nil
+		return nil
+	}
+
+	var parsed time.Time
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return err
+	}
+
+	f.Valid = true
+	f.Value = &parsed
+	return nil
+}
+
+func (f OptionalTimeField) Apply(existing *time.Time) *time.Time {
+	if !f.Provided {
+		return existing
+	}
+	if !f.Valid {
+		return nil
+	}
+
+	if f.Value == nil {
+		return nil
+	}
+
+	copied := *f.Value
+	return &copied
+}
+
+func (f OptionalTimeField) ShouldGenerateReport() bool {
+	return f.Provided && f.Valid && f.Value != nil
+}
+
 type AttendanceCorrectionInput struct {
-	FirstConnectAt   *time.Time
-	LastDisconnectAt *time.Time
+	FirstConnectAt   OptionalTimeField `json:"firstConnectAt"`
+	LastDisconnectAt OptionalTimeField `json:"lastDisconnectAt"`
 }
 
 type AttendanceCorrectionResult struct {
@@ -268,10 +314,11 @@ type AttendanceAdminService struct {
 	db             *sql.DB
 	attendanceRepo repository.AttendanceRepository
 	reportRepo     repository.ReportRepository
+	settingsRepo   repository.SystemSettingRepository
 	reportSvc      *ReportService
 }
 
-func NewAttendanceAdminService(db *sql.DB, attendanceRepo repository.AttendanceRepository, reportRepo repository.ReportRepository, reportSvc *ReportService) *AttendanceAdminService {
+func NewAttendanceAdminService(db *sql.DB, attendanceRepo repository.AttendanceRepository, reportRepo repository.ReportRepository, settingsRepo repository.SystemSettingRepository, reportSvc *ReportService) *AttendanceAdminService {
 	if reportSvc == nil {
 		reportSvc = NewReportService()
 	}
@@ -280,6 +327,7 @@ func NewAttendanceAdminService(db *sql.DB, attendanceRepo repository.AttendanceR
 		db:             db,
 		attendanceRepo: attendanceRepo,
 		reportRepo:     reportRepo,
+		settingsRepo:   settingsRepo,
 		reportSvc:      reportSvc,
 	}
 }
@@ -288,7 +336,7 @@ func (s *AttendanceAdminService) CorrectAttendance(ctx context.Context, attendan
 	if s.attendanceRepo == nil || s.reportRepo == nil {
 		return nil, errors.New("attendance and report repositories are required")
 	}
-	if input.FirstConnectAt == nil && input.LastDisconnectAt == nil {
+	if !input.FirstConnectAt.Provided && !input.LastDisconnectAt.Provided {
 		return nil, fmt.Errorf("%w: at least one timestamp is required", ErrInvalidAttendanceCorrection)
 	}
 
@@ -297,8 +345,8 @@ func (s *AttendanceAdminService) CorrectAttendance(ctx context.Context, attendan
 		return nil, err
 	}
 
-	record.FirstConnectAt = input.FirstConnectAt
-	record.LastDisconnectAt = input.LastDisconnectAt
+	record.FirstConnectAt = input.FirstConnectAt.Apply(record.FirstConnectAt)
+	record.LastDisconnectAt = input.LastDisconnectAt.Apply(record.LastDisconnectAt)
 	record.SourceMode = "manual"
 	record.Version++
 	now := time.Now()
@@ -312,6 +360,11 @@ func (s *AttendanceAdminService) CorrectAttendance(ctx context.Context, attendan
 	if record.LastDisconnectAt != nil {
 		record.ClockOutStatus = "done"
 		record.ExceptionStatus = "none"
+	}
+
+	targetURL, err := s.reportTargetURL(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	if s.db == nil {
@@ -344,16 +397,16 @@ func (s *AttendanceAdminService) CorrectAttendance(ctx context.Context, attendan
 	}
 
 	reports := make([]domain.AttendanceReport, 0, 2)
-	if record.FirstConnectAt != nil {
-		report := s.reportSvc.CreatePendingReport(*record, "clock_in", *record.FirstConnectAt, "")
+	if input.FirstConnectAt.ShouldGenerateReport() && record.FirstConnectAt != nil {
+		report := s.reportSvc.CreatePendingReport(*record, "clock_in", *record.FirstConnectAt, targetURL)
 		reports = append(reports, report)
 		if err := reportTx.WithTx(tx).Save(ctx, &report); err != nil {
 			_ = tx.Rollback()
 			return nil, err
 		}
 	}
-	if record.LastDisconnectAt != nil {
-		report := s.reportSvc.CreatePendingReport(*record, "clock_out", *record.LastDisconnectAt, "")
+	if input.LastDisconnectAt.ShouldGenerateReport() && record.LastDisconnectAt != nil {
+		report := s.reportSvc.CreatePendingReport(*record, "clock_out", *record.LastDisconnectAt, targetURL)
 		reports = append(reports, report)
 		if err := reportTx.WithTx(tx).Save(ctx, &report); err != nil {
 			_ = tx.Rollback()
@@ -366,6 +419,25 @@ func (s *AttendanceAdminService) CorrectAttendance(ctx context.Context, attendan
 	}
 
 	return &AttendanceCorrectionResult{Record: *record, Reports: reports}, nil
+}
+
+func (s *AttendanceAdminService) reportTargetURL(ctx context.Context) (string, error) {
+	if s.settingsRepo == nil {
+		return "", nil
+	}
+
+	setting, err := s.settingsRepo.GetByKey(ctx, reportTargetURLSettingKey)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", err
+	}
+	if setting == nil {
+		return "", nil
+	}
+
+	return strings.TrimSpace(setting.SettingValue), nil
 }
 
 func normalizeMACAddress(value string) string {
