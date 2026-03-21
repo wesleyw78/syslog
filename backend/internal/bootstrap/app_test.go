@@ -55,6 +55,9 @@ func TestNewLoadsConfigOpensDBRunsMigrationAndAssemblesApp(t *testing.T) {
 	if app.Services.SyslogPipeline == nil {
 		t.Fatalf("expected syslog pipeline service to be assembled")
 	}
+	if app.Services.EmployeeAdmin == nil || app.Services.SettingsAdmin == nil || app.Services.AttendanceAdmin == nil {
+		t.Fatalf("expected admin services to be assembled, got %+v", app.Services)
+	}
 
 	mock.ExpectClose()
 	if err := app.Close(); err != nil {

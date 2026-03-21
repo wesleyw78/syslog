@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 
 	"syslog/internal/domain"
 	httpapi "syslog/internal/http"
+	"syslog/internal/repository"
 )
 
 type fakeEmployeeRepo struct {
@@ -20,8 +22,36 @@ func (f *fakeEmployeeRepo) FindByMACAddress(context.Context, string) (*domain.Em
 	return nil, nil
 }
 
+func (f *fakeEmployeeRepo) FindByID(context.Context, uint64) (*domain.Employee, error) {
+	return nil, nil
+}
+
 func (f *fakeEmployeeRepo) List(context.Context) ([]domain.Employee, error) {
 	return append([]domain.Employee(nil), f.employees...), nil
+}
+
+func (f *fakeEmployeeRepo) Create(context.Context, *domain.Employee) error {
+	return nil
+}
+
+func (f *fakeEmployeeRepo) Update(context.Context, *domain.Employee) error {
+	return nil
+}
+
+func (f *fakeEmployeeRepo) Disable(context.Context, uint64) error {
+	return nil
+}
+
+func (f *fakeEmployeeRepo) ReplaceDevices(context.Context, uint64, []domain.EmployeeDevice) error {
+	return nil
+}
+
+func (f *fakeEmployeeRepo) DisableDevicesByEmployeeID(context.Context, uint64) error {
+	return nil
+}
+
+func (f *fakeEmployeeRepo) WithTx(*sql.Tx) repository.EmployeeRepository {
+	return f
 }
 
 type fakeSyslogMessageRepo struct {
@@ -52,6 +82,10 @@ type fakeAttendanceRepo struct {
 	records []domain.AttendanceRecord
 }
 
+func (f *fakeAttendanceRepo) FindByID(context.Context, uint64) (*domain.AttendanceRecord, error) {
+	return nil, nil
+}
+
 func (f *fakeAttendanceRepo) FindByEmployeeAndDate(context.Context, uint64, time.Time) (*domain.AttendanceRecord, error) {
 	return nil, nil
 }
@@ -64,6 +98,10 @@ func (f *fakeAttendanceRepo) ListByDateRange(context.Context, time.Time, time.Ti
 	return append([]domain.AttendanceRecord(nil), f.records...), nil
 }
 
+func (f *fakeAttendanceRepo) WithTx(*sql.Tx) repository.AttendanceRepository {
+	return f
+}
+
 type fakeSystemSettingRepo struct {
 	settings []domain.SystemSetting
 }
@@ -74,6 +112,14 @@ func (f *fakeSystemSettingRepo) GetByKey(context.Context, string) (*domain.Syste
 
 func (f *fakeSystemSettingRepo) List(context.Context) ([]domain.SystemSetting, error) {
 	return append([]domain.SystemSetting(nil), f.settings...), nil
+}
+
+func (f *fakeSystemSettingRepo) Save(context.Context, *domain.SystemSetting) error {
+	return nil
+}
+
+func (f *fakeSystemSettingRepo) WithTx(*sql.Tx) repository.SystemSettingRepository {
+	return f
 }
 
 func TestAdminRoutesReturnRealJSON(t *testing.T) {

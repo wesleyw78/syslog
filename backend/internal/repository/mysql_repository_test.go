@@ -83,13 +83,15 @@ func TestMySQLEmployeeRepositoryList(t *testing.T) {
 
 	repo := NewMySQLEmployeeRepository(db)
 	now := mustTime(t, "2026-03-21T08:00:00Z")
-	rows := sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at"}).
-		AddRow(uint64(1), "EMP-001", "SYS-001", "Alice", "active", now, now).
-		AddRow(uint64(2), "EMP-002", "SYS-002", "Bob", "disabled", now, now)
+	rows := sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
+		AddRow(uint64(1), "EMP-001", "SYS-001", "Alice", "active", now, now, nil, nil, nil, nil, nil, nil).
+		AddRow(uint64(2), "EMP-002", "SYS-002", "Bob", "disabled", now, now, nil, nil, nil, nil, nil, nil)
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT id, employee_no, system_no, name, status, created_at, updated_at
-		FROM employees
-		ORDER BY id ASC
+		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
+		FROM employees e
+		LEFT JOIN employee_devices d ON d.employee_id = e.id
+		ORDER BY e.id ASC, d.id ASC
 	`))).WillReturnRows(rows)
 
 	got, err := repo.List(context.Background())
@@ -101,6 +103,129 @@ func TestMySQLEmployeeRepositoryList(t *testing.T) {
 	}
 	if got[0].EmployeeNo != "EMP-001" || got[1].EmployeeNo != "EMP-002" {
 		t.Fatalf("unexpected list result: %+v", got)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("expected all query expectations to be met, got %v", err)
+	}
+}
+
+func TestMySQLEmployeeRepositoryFindByID(t *testing.T) {
+	db, mock := newMockDB(t)
+	defer db.Close()
+
+	repo := NewMySQLEmployeeRepository(db)
+	now := mustTime(t, "2026-03-21T08:00:00Z")
+	rows := sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
+		AddRow(uint64(1), "EMP-001", "SYS-001", "Alice", "active", now, now, uint64(11), "aa:bb:cc:dd:ee:ff", "Phone", "active", now, now)
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
+		FROM employees e
+		LEFT JOIN employee_devices d ON d.employee_id = e.id
+		WHERE e.id = ?
+		ORDER BY d.id ASC
+	`))).WithArgs(uint64(1)).WillReturnRows(rows)
+
+	got, err := repo.FindByID(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("expected find by id to succeed, got %v", err)
+	}
+	if got == nil || got.ID != 1 {
+		t.Fatalf("unexpected employee result: %+v", got)
+	}
+	if len(got.Devices) != 1 || got.Devices[0].MacAddress != "aa:bb:cc:dd:ee:ff" {
+		t.Fatalf("expected device to round-trip, got %+v", got.Devices)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("expected all query expectations to be met, got %v", err)
+	}
+}
+
+func TestMySQLEmployeeRepositoryCreateUpdateDisableAndReplaceDevices(t *testing.T) {
+	db, mock := newMockDB(t)
+	defer db.Close()
+
+	repo := NewMySQLEmployeeRepository(db)
+	employee := &domain.Employee{EmployeeNo: "EMP-001", SystemNo: "SYS-001", Name: "Alice", Status: "active"}
+	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
+		INSERT INTO employees (
+			employee_no,
+			system_no,
+			name,
+			status
+		) VALUES (?, ?, ?, ?)
+	`))).WithArgs("EMP-001", "SYS-001", "Alice", "active").
+		WillReturnResult(sqlmock.NewResult(11, 1))
+
+	if err := repo.Create(context.Background(), employee); err != nil {
+		t.Fatalf("expected create to succeed, got %v", err)
+	}
+	if employee.ID != 11 {
+		t.Fatalf("expected inserted id 11, got %d", employee.ID)
+	}
+
+	employee.Name = "Alice Updated"
+	employee.Status = "active"
+	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
+		UPDATE employees
+		SET employee_no = ?, system_no = ?, name = ?, status = ?
+		WHERE id = ?
+	`))).WithArgs("EMP-001", "SYS-001", "Alice Updated", "active", uint64(11)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	if err := repo.Update(context.Background(), employee); err != nil {
+		t.Fatalf("expected update to succeed, got %v", err)
+	}
+
+	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
+		UPDATE employees
+		SET status = ?
+		WHERE id = ?
+	`))).WithArgs("disabled", uint64(11)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	if err := repo.Disable(context.Background(), 11); err != nil {
+		t.Fatalf("expected disable to succeed, got %v", err)
+	}
+
+	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
+		DELETE FROM employee_devices
+		WHERE employee_id = ?
+	`))).WithArgs(uint64(11)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
+		INSERT INTO employee_devices (
+			employee_id,
+			mac_address,
+			device_label,
+			status
+		) VALUES (?, ?, ?, ?)
+	`))).WithArgs(uint64(11), "aa:bb:cc:dd:ee:ff", "Phone", "active").
+		WillReturnResult(sqlmock.NewResult(21, 1))
+	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
+		INSERT INTO employee_devices (
+			employee_id,
+			mac_address,
+			device_label,
+			status
+		) VALUES (?, ?, ?, ?)
+	`))).WithArgs(uint64(11), "11:22:33:44:55:66", "Tablet", "disabled").
+		WillReturnResult(sqlmock.NewResult(22, 1))
+	if err := repo.ReplaceDevices(context.Background(), 11, []domain.EmployeeDevice{
+		{MacAddress: "aa:bb:cc:dd:ee:ff", DeviceLabel: "Phone", Status: "active"},
+		{MacAddress: "11:22:33:44:55:66", DeviceLabel: "Tablet", Status: "disabled"},
+	}); err != nil {
+		t.Fatalf("expected replace devices to succeed, got %v", err)
+	}
+
+	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
+		UPDATE employee_devices
+		SET status = ?
+		WHERE employee_id = ?
+	`))).WithArgs("disabled", uint64(11)).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+	if err := repo.DisableDevicesByEmployeeID(context.Background(), 11); err != nil {
+		t.Fatalf("expected disable devices to succeed, got %v", err)
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -337,6 +462,40 @@ func TestMySQLAttendanceRepositoryFindSaveAndListByDateRange(t *testing.T) {
 	}
 }
 
+func TestMySQLAttendanceRepositoryFindByID(t *testing.T) {
+	db, mock := newMockDB(t)
+	defer db.Close()
+
+	repo := NewMySQLAttendanceRepository(db)
+	attendanceDate := mustTime(t, "2026-03-21T00:00:00Z")
+	firstConnect := mustTime(t, "2026-03-21T08:00:00Z")
+	lastDisconnect := mustTime(t, "2026-03-21T17:00:00Z")
+	lastCalculated := mustTime(t, "2026-03-21T17:05:00Z")
+	rows := sqlmock.NewRows([]string{"id", "employee_id", "attendance_date", "first_connect_at", "last_disconnect_at", "clock_in_status", "clock_out_status", "exception_status", "source_mode", "version", "last_calculated_at"}).
+		AddRow(uint64(55), uint64(42), attendanceDate, firstConnect, lastDisconnect, "done", "done", "none", "manual", uint32(3), lastCalculated)
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT id, employee_id, attendance_date, first_connect_at, last_disconnect_at, clock_in_status, clock_out_status, exception_status, source_mode, version, last_calculated_at
+		FROM attendance_records
+		WHERE id = ?
+		LIMIT 1
+	`))).WithArgs(uint64(55)).WillReturnRows(rows)
+
+	got, err := repo.FindByID(context.Background(), 55)
+	if err != nil {
+		t.Fatalf("expected find by id to succeed, got %v", err)
+	}
+	if got == nil || got.ID != 55 || got.Version != 3 {
+		t.Fatalf("unexpected attendance record: %+v", got)
+	}
+	if got.FirstConnectAt == nil || !got.FirstConnectAt.Equal(firstConnect) {
+		t.Fatalf("expected first connect to round-trip, got %+v", got.FirstConnectAt)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("expected all sql expectations to be met, got %v", err)
+	}
+}
+
 func TestMySQLReportRepositoryFindSaveAndListByAttendanceRecordID(t *testing.T) {
 	db, mock := newMockDB(t)
 	defer db.Close()
@@ -521,5 +680,37 @@ func TestMySQLSystemSettingRepositoryGetAndList(t *testing.T) {
 
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("expected all sql expectations to be met, got %v", err)
+	}
+}
+
+func TestMySQLSystemSettingRepositorySave(t *testing.T) {
+	db, mock := newMockDB(t)
+	defer db.Close()
+
+	repo := NewMySQLSystemSettingRepository(db)
+	setting := &domain.SystemSetting{
+		SettingKey:   "day_end_time",
+		SettingValue: "22:00",
+	}
+	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
+		INSERT INTO system_settings (
+			setting_key,
+			setting_value
+		) VALUES (?, ?)
+		ON DUPLICATE KEY UPDATE
+			id = LAST_INSERT_ID(id),
+			setting_value = VALUES(setting_value)
+	`))).WithArgs("day_end_time", "22:00").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	if err := repo.Save(context.Background(), setting); err != nil {
+		t.Fatalf("expected save to succeed, got %v", err)
+	}
+	if setting.ID != 1 {
+		t.Fatalf("expected inserted id 1, got %d", setting.ID)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("expected all query expectations to be met, got %v", err)
 	}
 }

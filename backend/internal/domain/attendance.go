@@ -3,35 +3,36 @@ package domain
 import "time"
 
 type Employee struct {
-	ID         uint64
-	EmployeeNo string
-	SystemNo   string
-	Name       string
-	Status     string
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID         uint64           `json:"id"`
+	EmployeeNo string           `json:"employeeNo"`
+	SystemNo   string           `json:"systemNo"`
+	Name       string           `json:"name"`
+	Status     string           `json:"status"`
+	Devices    []EmployeeDevice `json:"devices,omitempty"`
+	CreatedAt  time.Time        `json:"createdAt"`
+	UpdatedAt  time.Time        `json:"updatedAt"`
 }
 
 type EmployeeDevice struct {
-	ID          uint64
-	EmployeeID  uint64
-	MacAddress  string
-	DeviceLabel string
-	Status      string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID          uint64    `json:"id"`
+	EmployeeID  uint64    `json:"employeeId"`
+	MacAddress  string    `json:"macAddress"`
+	DeviceLabel string    `json:"deviceLabel"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 type AttendanceRecord struct {
-	ID               uint64
-	EmployeeID       uint64
-	AttendanceDate   time.Time
-	FirstConnectAt   *time.Time
-	LastDisconnectAt *time.Time
-	ClockInStatus    string
-	ClockOutStatus   string
-	ExceptionStatus  string
-	SourceMode       string
-	Version          uint32
-	LastCalculatedAt *time.Time
+	ID               uint64     `json:"id"`
+	EmployeeID       uint64     `json:"employeeId"`
+	AttendanceDate   time.Time  `json:"attendanceDate"`
+	FirstConnectAt   *time.Time `json:"firstConnectAt,omitempty"`
+	LastDisconnectAt *time.Time `json:"lastDisconnectAt,omitempty"`
+	ClockInStatus    string     `json:"clockInStatus"`
+	ClockOutStatus   string     `json:"clockOutStatus"`
+	ExceptionStatus  string     `json:"exceptionStatus"`
+	SourceMode       string     `json:"sourceMode"`
+	Version          uint32     `json:"version"`
+	LastCalculatedAt *time.Time `json:"lastCalculatedAt,omitempty"`
 }

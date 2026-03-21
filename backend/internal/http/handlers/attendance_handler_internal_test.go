@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"syslog/internal/domain"
+	"syslog/internal/repository"
 )
 
 type captureAttendanceWindowRepo struct {
@@ -21,6 +23,10 @@ func (r *captureAttendanceWindowRepo) FindByEmployeeAndDate(context.Context, uin
 	return nil, nil
 }
 
+func (r *captureAttendanceWindowRepo) FindByID(context.Context, uint64) (*domain.AttendanceRecord, error) {
+	return nil, nil
+}
+
 func (r *captureAttendanceWindowRepo) Save(context.Context, *domain.AttendanceRecord) error {
 	return nil
 }
@@ -30,6 +36,10 @@ func (r *captureAttendanceWindowRepo) ListByDateRange(_ context.Context, from, t
 	r.from = from
 	r.to = to
 	return append([]domain.AttendanceRecord(nil), r.records...), nil
+}
+
+func (r *captureAttendanceWindowRepo) WithTx(*sql.Tx) repository.AttendanceRepository {
+	return r
 }
 
 func TestNewAttendanceHandlerUsesDayBoundaries(t *testing.T) {

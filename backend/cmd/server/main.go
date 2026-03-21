@@ -37,11 +37,14 @@ func main() {
 	dayEndService := service.NewDayEndService()
 	dayEndCron := scheduler.NewCron(dayEndService)
 	adminServer := httpapi.NewServer(adminHTTPAddr, httpapi.Dependencies{
-		Employees:      app.Repositories.Employees,
-		SyslogMessages: app.Repositories.SyslogMessages,
-		ClientEvents:   app.Repositories.ClientEvents,
-		Attendance:     app.Repositories.Attendance,
-		Settings:       app.Repositories.Settings,
+		Employees:       app.Repositories.Employees,
+		EmployeeAdmin:   app.Services.EmployeeAdmin,
+		SyslogMessages:  app.Repositories.SyslogMessages,
+		ClientEvents:    app.Repositories.ClientEvents,
+		Attendance:      app.Repositories.Attendance,
+		AttendanceAdmin: app.Services.AttendanceAdmin,
+		Settings:        app.Repositories.Settings,
+		SettingsAdmin:   app.Services.SettingsAdmin,
 	})
 	udpListener := ingest.NewUDPListener("", func(ctx context.Context, payload []byte, addr net.Addr) error {
 		receivedAt := time.Now()

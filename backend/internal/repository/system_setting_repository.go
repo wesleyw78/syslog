@@ -10,14 +10,20 @@ import (
 type SystemSettingRepository interface {
 	GetByKey(ctx context.Context, key string) (*domain.SystemSetting, error)
 	List(ctx context.Context) ([]domain.SystemSetting, error)
+	Save(ctx context.Context, setting *domain.SystemSetting) error
+	WithTx(tx *sql.Tx) SystemSettingRepository
 }
 
 type MySQLSystemSettingRepository struct {
-	db *sql.DB
+	db sqlExecutor
 }
 
 func NewMySQLSystemSettingRepository(db *sql.DB) *MySQLSystemSettingRepository {
 	return &MySQLSystemSettingRepository{db: db}
+}
+
+func (r *MySQLSystemSettingRepository) WithTx(tx *sql.Tx) SystemSettingRepository {
+	return &MySQLSystemSettingRepository{db: tx}
 }
 
 func (r *MySQLSystemSettingRepository) GetByKey(ctx context.Context, key string) (*domain.SystemSetting, error) {
@@ -64,4 +70,28 @@ ORDER BY setting_key ASC`
 	}
 
 	return settings, nil
+}
+
+func (r *MySQLSystemSettingRepository) Save(ctx context.Context, setting *domain.SystemSetting) error {
+	const query = `
+INSERT INTO system_settings (
+	setting_key,
+	setting_value
+) VALUES (?, ?)
+ON DUPLICATE KEY UPDATE
+	id = LAST_INSERT_ID(id),
+	setting_value = VALUES(setting_value)`
+
+	result, err := r.db.ExecContext(ctx, trimSQL(query), setting.SettingKey, setting.SettingValue)
+	if err != nil {
+		return err
+	}
+
+	id, err := parseInsertedID(result)
+	if err != nil {
+		return err
+	}
+
+	setting.ID = id
+	return nil
 }

@@ -60,8 +60,36 @@ func (f *fakePipelineEmployeeRepo) FindByMACAddress(_ context.Context, mac strin
 	return &copied, nil
 }
 
+func (f *fakePipelineEmployeeRepo) FindByID(context.Context, uint64) (*domain.Employee, error) {
+	return nil, sql.ErrNoRows
+}
+
 func (f *fakePipelineEmployeeRepo) List(context.Context) ([]domain.Employee, error) {
 	return nil, nil
+}
+
+func (f *fakePipelineEmployeeRepo) Create(context.Context, *domain.Employee) error {
+	return nil
+}
+
+func (f *fakePipelineEmployeeRepo) Update(context.Context, *domain.Employee) error {
+	return nil
+}
+
+func (f *fakePipelineEmployeeRepo) Disable(context.Context, uint64) error {
+	return nil
+}
+
+func (f *fakePipelineEmployeeRepo) ReplaceDevices(context.Context, uint64, []domain.EmployeeDevice) error {
+	return nil
+}
+
+func (f *fakePipelineEmployeeRepo) DisableDevicesByEmployeeID(context.Context, uint64) error {
+	return nil
+}
+
+func (f *fakePipelineEmployeeRepo) WithTx(*sql.Tx) repository.EmployeeRepository {
+	return f
 }
 
 type fakePipelineAttendanceRepo struct {
@@ -70,6 +98,10 @@ type fakePipelineAttendanceRepo struct {
 	saved     []*domain.AttendanceRecord
 	findErr   error
 	saveErr   error
+}
+
+func (f *fakePipelineAttendanceRepo) FindByID(context.Context, uint64) (*domain.AttendanceRecord, error) {
+	return nil, sql.ErrNoRows
 }
 
 func (f *fakePipelineAttendanceRepo) FindByEmployeeAndDate(_ context.Context, employeeID uint64, attendanceDate time.Time) (*domain.AttendanceRecord, error) {
@@ -98,6 +130,10 @@ func (f *fakePipelineAttendanceRepo) Save(_ context.Context, record *domain.Atte
 
 func (f *fakePipelineAttendanceRepo) ListByDateRange(context.Context, time.Time, time.Time) ([]domain.AttendanceRecord, error) {
 	return nil, nil
+}
+
+func (f *fakePipelineAttendanceRepo) WithTx(*sql.Tx) repository.AttendanceRepository {
+	return f
 }
 
 type fakePipelineReportRepo struct {
@@ -151,6 +187,14 @@ func (f *fakePipelineSettingRepo) GetByKey(_ context.Context, key string) (*doma
 
 func (f *fakePipelineSettingRepo) List(context.Context) ([]domain.SystemSetting, error) {
 	return nil, nil
+}
+
+func (f *fakePipelineSettingRepo) Save(context.Context, *domain.SystemSetting) error {
+	return nil
+}
+
+func (f *fakePipelineSettingRepo) WithTx(*sql.Tx) repository.SystemSettingRepository {
+	return f
 }
 
 func TestSyslogPipelineHandleSuccessCreatesDownstreamRecords(t *testing.T) {

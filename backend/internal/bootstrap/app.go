@@ -21,7 +21,10 @@ type Repositories struct {
 }
 
 type Services struct {
-	SyslogPipeline *service.SyslogPipeline
+	SyslogPipeline  *service.SyslogPipeline
+	EmployeeAdmin   *service.EmployeeAdminService
+	SettingsAdmin   *service.SettingsAdminService
+	AttendanceAdmin *service.AttendanceAdminService
 }
 
 type App struct {
@@ -62,6 +65,9 @@ func New(getenv func(string) string) (App, error) {
 			Settings:       repository.NewMySQLSystemSettingRepository(db),
 		},
 	}
+	app.Services.EmployeeAdmin = service.NewEmployeeAdminService(db, app.Repositories.Employees)
+	app.Services.SettingsAdmin = service.NewSettingsAdminService(db, app.Repositories.Settings)
+	app.Services.AttendanceAdmin = service.NewAttendanceAdminService(db, app.Repositories.Attendance, app.Repositories.Reports, service.NewReportService())
 	app.Services.SyslogPipeline = service.NewSyslogPipeline(service.SyslogPipelineDeps{
 		DB:            db,
 		Messages:      app.Repositories.SyslogMessages,

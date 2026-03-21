@@ -9,6 +9,7 @@ import (
 )
 
 type AttendanceRepository interface {
+	FindByID(ctx context.Context, id uint64) (*domain.AttendanceRecord, error)
 	FindByEmployeeAndDate(ctx context.Context, employeeID uint64, attendanceDate time.Time) (*domain.AttendanceRecord, error)
 	Save(ctx context.Context, record *domain.AttendanceRecord) error
 	ListByDateRange(ctx context.Context, from, to time.Time) ([]domain.AttendanceRecord, error)
@@ -30,6 +31,41 @@ func NewMySQLAttendanceRepository(db *sql.DB) *MySQLAttendanceRepository {
 
 func (r *MySQLAttendanceRepository) WithTx(tx *sql.Tx) AttendanceRepository {
 	return &MySQLAttendanceRepository{db: tx}
+}
+
+func (r *MySQLAttendanceRepository) FindByID(ctx context.Context, id uint64) (*domain.AttendanceRecord, error) {
+	const query = `
+SELECT id, employee_id, attendance_date, first_connect_at, last_disconnect_at, clock_in_status, clock_out_status, exception_status, source_mode, version, last_calculated_at
+FROM attendance_records
+WHERE id = ?
+LIMIT 1`
+
+	row := r.db.QueryRowContext(ctx, trimSQL(query), id)
+
+	var record domain.AttendanceRecord
+	var firstConnectAt sql.NullTime
+	var lastDisconnectAt sql.NullTime
+	var lastCalculatedAt sql.NullTime
+	if err := row.Scan(
+		&record.ID,
+		&record.EmployeeID,
+		&record.AttendanceDate,
+		&firstConnectAt,
+		&lastDisconnectAt,
+		&record.ClockInStatus,
+		&record.ClockOutStatus,
+		&record.ExceptionStatus,
+		&record.SourceMode,
+		&record.Version,
+		&lastCalculatedAt,
+	); err != nil {
+		return nil, err
+	}
+
+	record.FirstConnectAt = timeFromNullTime(firstConnectAt)
+	record.LastDisconnectAt = timeFromNullTime(lastDisconnectAt)
+	record.LastCalculatedAt = timeFromNullTime(lastCalculatedAt)
+	return &record, nil
 }
 
 func (r *MySQLAttendanceRepository) FindByEmployeeAndDate(ctx context.Context, employeeID uint64, attendanceDate time.Time) (*domain.AttendanceRecord, error) {
