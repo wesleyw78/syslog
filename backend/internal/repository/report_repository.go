@@ -33,22 +33,26 @@ LIMIT 1`
 	var report domain.AttendanceReport
 	var responseCode sql.NullInt64
 	var reportedAt sql.NullTime
+	var payloadJSON sql.NullString
+	var responseBody sql.NullString
 	if err := row.Scan(
 		&report.ID,
 		&report.AttendanceRecordID,
 		&report.ReportType,
 		&report.IdempotencyKey,
-		&report.PayloadJSON,
+		&payloadJSON,
 		&report.TargetURL,
 		&report.ReportStatus,
 		&responseCode,
-		&report.ResponseBody,
+		&responseBody,
 		&reportedAt,
 		&report.RetryCount,
 	); err != nil {
 		return nil, err
 	}
 
+	report.PayloadJSON = stringFromNullString(payloadJSON)
+	report.ResponseBody = stringFromNullString(responseBody)
 	report.ResponseCode = intFromNullInt64(responseCode)
 	report.ReportedAt = timeFromNullTime(reportedAt)
 	return &report, nil
@@ -125,22 +129,26 @@ ORDER BY id DESC`
 		var report domain.AttendanceReport
 		var responseCode sql.NullInt64
 		var reportedAt sql.NullTime
+		var payloadJSON sql.NullString
+		var responseBody sql.NullString
 		if err := rows.Scan(
 			&report.ID,
 			&report.AttendanceRecordID,
 			&report.ReportType,
 			&report.IdempotencyKey,
-			&report.PayloadJSON,
+			&payloadJSON,
 			&report.TargetURL,
 			&report.ReportStatus,
 			&responseCode,
-			&report.ResponseBody,
+			&responseBody,
 			&reportedAt,
 			&report.RetryCount,
 		); err != nil {
 			return nil, err
 		}
 
+		report.PayloadJSON = stringFromNullString(payloadJSON)
+		report.ResponseBody = stringFromNullString(responseBody)
 		report.ResponseCode = intFromNullInt64(responseCode)
 		report.ReportedAt = timeFromNullTime(reportedAt)
 		reports = append(reports, report)

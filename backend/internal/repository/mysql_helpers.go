@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -63,6 +64,14 @@ func intFromNullInt64(value sql.NullInt64) *int {
 	return &result
 }
 
+func stringFromNullString(value sql.NullString) string {
+	if !value.Valid {
+		return ""
+	}
+
+	return value.String
+}
+
 func limitOrDefault(limit int) int {
 	if limit <= 0 {
 		return defaultRecentLimit
@@ -78,7 +87,7 @@ func parseInsertedID(result sql.Result) (uint64, error) {
 	}
 
 	if id < 0 {
-		return 0, nil
+		return 0, fmt.Errorf("negative last insert id: %d", id)
 	}
 
 	return uint64(id), nil

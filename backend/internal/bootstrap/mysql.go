@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -17,18 +16,29 @@ import (
 var openDB = sql.Open
 
 func OpenMySQL(cfg config.Config) (*sql.DB, error) {
-	if cfg.MySQLDSN != "" {
-		return openDB("mysql", cfg.MySQLDSN)
+	dsn, err := buildMySQLDSN(cfg)
+	if err != nil {
+		return nil, err
 	}
 
-	return openDB("mysql", buildMySQLDSN(cfg))
+	return openDB("mysql", dsn)
 }
 
 func RunMigrations(ctx context.Context, db *sql.DB) error {
 	return schema.ApplyMigrations(ctx, db)
 }
 
-func buildMySQLDSN(cfg config.Config) string {
+func buildMySQLDSN(cfg config.Config) (string, error) {
+	if cfg.MySQLDSN != "" {
+		mysqlConfig, err := mysql.ParseDSN(cfg.MySQLDSN)
+		if err != nil {
+			return "", err
+		}
+
+		normalizeMySQLConfig(mysqlConfig, "Asia/Shanghai")
+		return mysqlConfig.FormatDSN(), nil
+	}
+
 	mysqlConfig := mysql.NewConfig()
 	mysqlConfig.User = cfg.MySQLUser
 	mysqlConfig.Passwd = cfg.MySQLPassword
@@ -36,9 +46,6 @@ func buildMySQLDSN(cfg config.Config) string {
 	mysqlConfig.Addr = fmt.Sprintf("%s:%d", cfg.MySQLHost, cfg.MySQLPort)
 	mysqlConfig.DBName = cfg.MySQLDatabase
 	mysqlConfig.Params = map[string]string{}
-	mysqlConfig.ParseTime = true
-	mysqlConfig.MultiStatements = true
-	mysqlConfig.Loc = mustLoadLocation("Asia/Shanghai")
 
 	params := parseMySQLParams(cfg.MySQLParams)
 	if value, ok := params["charset"]; ok && value != "" {
@@ -46,28 +53,16 @@ func buildMySQLDSN(cfg config.Config) string {
 	} else {
 		mysqlConfig.Params["charset"] = "utf8mb4"
 	}
-
-	if value, ok := params["parseTime"]; ok {
-		mysqlConfig.ParseTime = parseBool(value, true)
-	}
-	if value, ok := params["multiStatements"]; ok {
-		mysqlConfig.MultiStatements = parseBool(value, true)
-	}
-	if value, ok := params["loc"]; ok && value != "" {
-		if loc, err := time.LoadLocation(value); err == nil {
-			mysqlConfig.Loc = loc
-		}
-	}
-
 	for key, value := range params {
-		if key == "charset" || key == "parseTime" || key == "multiStatements" || key == "loc" || value == "" {
+		if key == "charset" || value == "" {
 			continue
 		}
 
 		mysqlConfig.Params[key] = value
 	}
 
-	return mysqlConfig.FormatDSN()
+	normalizeMySQLConfig(mysqlConfig, "Asia/Shanghai")
+	return mysqlConfig.FormatDSN(), nil
 }
 
 func mustLoadLocation(name string) *time.Location {
@@ -77,6 +72,16 @@ func mustLoadLocation(name string) *time.Location {
 	}
 
 	return loc
+}
+
+func normalizeMySQLConfig(cfg *mysql.Config, locationName string) {
+	cfg.ParseTime = true
+	cfg.MultiStatements = true
+	cfg.Loc = mustLoadLocation(locationName)
+
+	if cfg.Params == nil {
+		cfg.Params = map[string]string{}
+	}
 }
 
 func parseMySQLParams(raw string) map[string]string {
@@ -98,13 +103,4 @@ func parseMySQLParams(raw string) map[string]string {
 	}
 
 	return params
-}
-
-func parseBool(value string, fallback bool) bool {
-	parsed, err := strconv.ParseBool(value)
-	if err != nil {
-		return fallback
-	}
-
-	return parsed
 }

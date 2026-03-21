@@ -27,7 +27,7 @@ func TestOpenMySQLUsesConfigDSNWhenProvided(t *testing.T) {
 	}
 
 	cfg := config.Config{
-		MySQLDSN:  "reader:secret@tcp(db.example.com:3306)/syslog?parseTime=true&loc=Asia%2FShanghai",
+		MySQLDSN:  "reader:secret@tcp(db.example.com:3306)/syslog?parseTime=false&multiStatements=false&loc=UTC",
 		MySQLHost: "127.0.0.1",
 		MySQLPort: 3306,
 		MySQLUser: "syslog",
@@ -43,8 +43,15 @@ func TestOpenMySQLUsesConfigDSNWhenProvided(t *testing.T) {
 	if capturedDriver != "mysql" {
 		t.Fatalf("expected mysql driver, got %s", capturedDriver)
 	}
-	if capturedDSN != "reader:secret@tcp(db.example.com:3306)/syslog?parseTime=true&loc=Asia%2FShanghai" {
-		t.Fatalf("expected mysql dsn to be used verbatim, got %s", capturedDSN)
+	for _, fragment := range []string{
+		"reader:secret@tcp(db.example.com:3306)/syslog?",
+		"parseTime=true",
+		"multiStatements=true",
+		"loc=Asia%2FShanghai",
+	} {
+		if !strings.Contains(capturedDSN, fragment) {
+			t.Fatalf("expected normalized dsn to contain %s, got %s", fragment, capturedDSN)
+		}
 	}
 }
 

@@ -32,6 +32,16 @@ func mustTime(t *testing.T, value string) time.Time {
 	return parsed
 }
 
+func TestParseInsertedIDRejectsNegative(t *testing.T) {
+	id, err := parseInsertedID(sqlmock.NewResult(-1, 1))
+	if err == nil {
+		t.Fatalf("expected negative last insert id to fail")
+	}
+	if id != 0 {
+		t.Fatalf("expected zero id on failure, got %d", id)
+	}
+}
+
 func TestMySQLEmployeeRepositoryFindByMACAddress(t *testing.T) {
 	db, mock := newMockDB(t)
 	defer db.Close()
@@ -411,6 +421,57 @@ func TestMySQLReportRepositoryFindSaveAndListByAttendanceRecordID(t *testing.T) 
 	}
 	if len(got) != 1 || got[0].ID != 88 {
 		t.Fatalf("unexpected report list: %+v", got)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("expected all sql expectations to be met, got %v", err)
+	}
+}
+
+func TestMySQLReportRepositoryHandlesNullTextColumns(t *testing.T) {
+	db, mock := newMockDB(t)
+	defer db.Close()
+
+	repo := NewMySQLReportRepository(db)
+	reportedAt := mustTime(t, "2026-03-21T09:00:00Z")
+	rows := sqlmock.NewRows([]string{"id", "attendance_record_id", "report_type", "idempotency_key", "payload_json", "target_url", "report_status", "response_code", "response_body", "reported_at", "retry_count"}).
+		AddRow(uint64(88), uint64(55), "clock_in", "attendance-report/employee-42-2026-03-21/clock_in/2026-03-21T08:00:00Z/v2", nil, "http://example.test/report", "pending", nil, nil, reportedAt, uint32(1))
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, report_status, response_code, response_body, reported_at, retry_count
+		FROM attendance_reports
+		WHERE idempotency_key = ?
+		LIMIT 1
+	`))).WithArgs("attendance-report/employee-42-2026-03-21/clock_in/2026-03-21T08:00:00Z/v2").WillReturnRows(rows)
+
+	found, err := repo.FindByIdempotencyKey(context.Background(), "attendance-report/employee-42-2026-03-21/clock_in/2026-03-21T08:00:00Z/v2")
+	if err != nil {
+		t.Fatalf("expected lookup to succeed, got %v", err)
+	}
+	if found.PayloadJSON != "" {
+		t.Fatalf("expected null payload_json to become empty string, got %q", found.PayloadJSON)
+	}
+	if found.ResponseBody != "" {
+		t.Fatalf("expected null response_body to become empty string, got %q", found.ResponseBody)
+	}
+
+	listRows := sqlmock.NewRows([]string{"id", "attendance_record_id", "report_type", "idempotency_key", "payload_json", "target_url", "report_status", "response_code", "response_body", "reported_at", "retry_count"}).
+		AddRow(uint64(88), uint64(55), "clock_in", "attendance-report/employee-42-2026-03-21/clock_in/2026-03-21T08:00:00Z/v2", nil, "http://example.test/report", "pending", nil, nil, reportedAt, uint32(1))
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, report_status, response_code, response_body, reported_at, retry_count
+		FROM attendance_reports
+		WHERE attendance_record_id = ?
+		ORDER BY id DESC
+	`))).WithArgs(int64(55)).WillReturnRows(listRows)
+
+	got, err := repo.ListByAttendanceRecordID(context.Background(), 55)
+	if err != nil {
+		t.Fatalf("expected list to succeed, got %v", err)
+	}
+	if got[0].PayloadJSON != "" {
+		t.Fatalf("expected null payload_json to become empty string, got %q", got[0].PayloadJSON)
+	}
+	if got[0].ResponseBody != "" {
+		t.Fatalf("expected null response_body to become empty string, got %q", got[0].ResponseBody)
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {
