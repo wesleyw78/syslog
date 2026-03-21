@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-sql-driver/mysql"
 	"syslog/internal/domain"
 	httpapi "syslog/internal/http"
 	"syslog/internal/service"
@@ -20,32 +22,36 @@ type fakeEmployeeAdminWriter struct {
 	updateInput service.EmployeeWriteInput
 	disableID   uint64
 	returned    *domain.Employee
+	createErr   error
+	updateErr   error
+	disableErr  error
 }
 
 func (f *fakeEmployeeAdminWriter) CreateEmployee(_ context.Context, input service.EmployeeWriteInput) (*domain.Employee, error) {
 	f.createInput = input
-	return f.returned, nil
+	return f.returned, f.createErr
 }
 
 func (f *fakeEmployeeAdminWriter) UpdateEmployee(_ context.Context, id uint64, input service.EmployeeWriteInput) (*domain.Employee, error) {
 	f.updateID = id
 	f.updateInput = input
-	return f.returned, nil
+	return f.returned, f.updateErr
 }
 
 func (f *fakeEmployeeAdminWriter) DisableEmployee(_ context.Context, id uint64) (*domain.Employee, error) {
 	f.disableID = id
-	return f.returned, nil
+	return f.returned, f.disableErr
 }
 
 type fakeSettingsAdminWriter struct {
 	input   []service.SettingWriteInput
 	returns []domain.SystemSetting
+	err     error
 }
 
 func (f *fakeSettingsAdminWriter) UpdateSettings(_ context.Context, input []service.SettingWriteInput) ([]domain.SystemSetting, error) {
 	f.input = input
-	return append([]domain.SystemSetting(nil), f.returns...), nil
+	return append([]domain.SystemSetting(nil), f.returns...), f.err
 }
 
 type fakeAttendanceAdminWriter struct {
@@ -203,6 +209,69 @@ func TestAdminWriteRoutes(t *testing.T) {
 		}
 		if payload.Attendance.ID != 55 || len(payload.Reports) != 1 {
 			t.Fatalf("unexpected attendance response: %+v", payload)
+		}
+	})
+}
+
+func TestAdminWriteRoutesReturnExpectedErrorStatuses(t *testing.T) {
+	duplicateErr := &mysql.MySQLError{Number: 1062, Message: "Duplicate entry"}
+	router := httpapi.NewRouter(httpapi.Dependencies{
+		Employees: &fakeEmployeeRepo{},
+		EmployeeAdmin: &fakeEmployeeAdminWriter{
+			createErr: duplicateErr,
+			updateErr: sql.ErrNoRows,
+		},
+		Attendance:      &fakeAttendanceRepo{},
+		AttendanceAdmin: &fakeAttendanceAdminWriter{},
+		Settings:        &fakeSystemSettingRepo{},
+		SettingsAdmin:   &fakeSettingsAdminWriter{err: service.ErrInvalidSettingsInput},
+	})
+
+	t.Run("trailing json body returns bad request", func(t *testing.T) {
+		body := `{"employeeNo":"EMP-001","systemNo":"SYS-001","name":"Alice","devices":[]}{ }`
+		req := httptest.NewRequest(http.MethodPost, "/api/employees", strings.NewReader(body))
+		resp := httptest.NewRecorder()
+
+		router.ServeHTTP(resp, req)
+
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("expected bad request, got %d", resp.Code)
+		}
+	})
+
+	t.Run("duplicate employee returns conflict", func(t *testing.T) {
+		body := `{"employeeNo":"EMP-001","systemNo":"SYS-001","name":"Alice","devices":[]}`
+		req := httptest.NewRequest(http.MethodPost, "/api/employees", strings.NewReader(body))
+		resp := httptest.NewRecorder()
+
+		router.ServeHTTP(resp, req)
+
+		if resp.Code != http.StatusConflict {
+			t.Fatalf("expected conflict, got %d", resp.Code)
+		}
+	})
+
+	t.Run("missing employee returns not found", func(t *testing.T) {
+		body := `{"employeeNo":"EMP-001","systemNo":"SYS-001","name":"Alice","devices":[]}`
+		req := httptest.NewRequest(http.MethodPut, "/api/employees/7", strings.NewReader(body))
+		resp := httptest.NewRecorder()
+
+		router.ServeHTTP(resp, req)
+
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("expected not found, got %d", resp.Code)
+		}
+	})
+
+	t.Run("duplicate settings batch returns bad request", func(t *testing.T) {
+		body := `{"items":[{"settingKey":"day_end_time","settingValue":"22:00"}]}`
+		req := httptest.NewRequest(http.MethodPut, "/api/settings", strings.NewReader(body))
+		resp := httptest.NewRecorder()
+
+		router.ServeHTTP(resp, req)
+
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("expected bad request, got %d", resp.Code)
 		}
 	})
 }

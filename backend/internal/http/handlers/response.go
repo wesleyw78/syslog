@@ -4,8 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
+
+	"database/sql"
+	"github.com/go-sql-driver/mysql"
 
 	"syslog/internal/service"
 )
@@ -34,6 +39,14 @@ func decodeJSONBody(r *http.Request, dst any) error {
 		return err
 	}
 
+	var trailing json.RawMessage
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return errors.New("unexpected trailing JSON")
+		}
+		return err
+	}
+
 	return nil
 }
 
@@ -59,7 +72,24 @@ func statusCodeForServiceError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, service.ErrInvalidAttendanceCorrection):
 		return http.StatusBadRequest
+	case errors.Is(err, sql.ErrNoRows):
+		return http.StatusNotFound
+	case isDuplicateKeyError(err):
+		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError
 	}
+}
+
+func isDuplicateKeyError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var mysqlErr *mysql.MySQLError
+	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
+		return true
+	}
+
+	return strings.Contains(strings.ToLower(err.Error()), "duplicate")
 }

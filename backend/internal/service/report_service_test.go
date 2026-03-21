@@ -85,3 +85,33 @@ func TestCreatePendingReport(t *testing.T) {
 		t.Fatalf("expected payload attendance date 2026-03-21, got %#v", payload["attendanceDate"])
 	}
 }
+
+func TestCreateClearReport(t *testing.T) {
+	service := NewReportService()
+	record := domain.AttendanceRecord{
+		ID:             99,
+		EmployeeID:     7,
+		AttendanceDate: time.Date(2026, 3, 21, 0, 0, 0, 0, time.FixedZone("CST", 8*3600)),
+		Version:        2,
+	}
+
+	report := service.CreateClearReport(record, "clock_in", "https://example.test/report")
+
+	if report.TargetURL != "https://example.test/report" {
+		t.Fatalf("expected target url to be preserved, got %q", report.TargetURL)
+	}
+	if report.IdempotencyKey != "attendance-report/employee-7-2026-03-21/clock_in/clear/v2" {
+		t.Fatalf("expected clear idempotency key, got %q", report.IdempotencyKey)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(report.PayloadJSON), &payload); err != nil {
+		t.Fatalf("expected valid payload json, got error: %v", err)
+	}
+	if payload["action"] != "clear" {
+		t.Fatalf("expected payload action clear, got %#v", payload["action"])
+	}
+	if payload["timestamp"] != nil {
+		t.Fatalf("expected clear payload timestamp to be null, got %#v", payload["timestamp"])
+	}
+}

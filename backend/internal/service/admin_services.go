@@ -83,7 +83,7 @@ func (s *EmployeeAdminService) DisableEmployee(ctx context.Context, id uint64) (
 		return nil, err
 	}
 
-	return &domain.Employee{ID: id, Status: "disabled"}, nil
+	return s.repo.FindByID(ctx, id)
 }
 
 func (s *EmployeeAdminService) saveEmployee(ctx context.Context, id uint64, input EmployeeWriteInput, creating bool) (*domain.Employee, error) {
@@ -126,11 +126,7 @@ func (s *EmployeeAdminService) saveEmployee(ctx context.Context, id uint64, inpu
 		return nil, err
 	}
 
-	for i := range devices {
-		devices[i].EmployeeID = employee.ID
-	}
-	employee.Devices = devices
-	return &employee, nil
+	return s.repo.FindByID(ctx, employee.ID)
 }
 
 func normalizeEmployeeInput(id uint64, input EmployeeWriteInput) (domain.Employee, []domain.EmployeeDevice, error) {
@@ -216,10 +212,15 @@ func (s *SettingsAdminService) UpdateSettings(ctx context.Context, items []Setti
 		currentByKey[setting.SettingKey] = setting
 	}
 
+	seen := make(map[string]struct{}, len(items))
 	for _, item := range items {
 		if _, ok := currentByKey[item.SettingKey]; !ok {
 			return nil, fmt.Errorf("%w: unknown setting key: %s", ErrInvalidSettingsInput, item.SettingKey)
 		}
+		if _, ok := seen[item.SettingKey]; ok {
+			return nil, fmt.Errorf("%w: duplicate setting key: %s", ErrInvalidSettingsInput, item.SettingKey)
+		}
+		seen[item.SettingKey] = struct{}{}
 	}
 
 	if len(items) == 0 {
@@ -345,21 +346,12 @@ func (s *AttendanceAdminService) CorrectAttendance(ctx context.Context, attendan
 		return nil, err
 	}
 
-	record.FirstConnectAt = input.FirstConnectAt.Apply(record.FirstConnectAt)
-	record.LastDisconnectAt = input.LastDisconnectAt.Apply(record.LastDisconnectAt)
-	record.SourceMode = "manual"
-	record.Version++
-	now := time.Now()
-	record.LastCalculatedAt = &now
-	record.ClockInStatus = "pending"
-	if record.FirstConnectAt != nil {
-		record.ClockInStatus = "done"
-	}
-	record.ClockOutStatus = "missing"
-	record.ExceptionStatus = "missing_disconnect"
-	if record.LastDisconnectAt != nil {
-		record.ClockOutStatus = "done"
-		record.ExceptionStatus = "none"
+	originalFirst := record.FirstConnectAt
+	originalLast := record.LastDisconnectAt
+	nextFirst := input.FirstConnectAt.Apply(originalFirst)
+	nextLast := input.LastDisconnectAt.Apply(originalLast)
+	if timePointerEqual(originalFirst, nextFirst) && timePointerEqual(originalLast, nextLast) {
+		return &AttendanceCorrectionResult{Record: *record}, nil
 	}
 
 	targetURL, err := s.reportTargetURL(ctx)
@@ -391,24 +383,39 @@ func (s *AttendanceAdminService) CorrectAttendance(ctx context.Context, attendan
 		return nil, errors.New("report repository does not support tx")
 	}
 
+	record.FirstConnectAt = nextFirst
+	record.LastDisconnectAt = nextLast
+	record.SourceMode = "manual"
+	record.Version++
+	now := time.Now()
+	record.LastCalculatedAt = &now
+	record.ClockInStatus = "pending"
+	if record.FirstConnectAt != nil {
+		record.ClockInStatus = "done"
+	}
+	record.ClockOutStatus = "missing"
+	record.ExceptionStatus = "missing_disconnect"
+	if record.LastDisconnectAt != nil {
+		record.ClockOutStatus = "done"
+		record.ExceptionStatus = "none"
+	}
+
 	if err := attendanceTx.WithTx(tx).Save(ctx, record); err != nil {
 		_ = tx.Rollback()
 		return nil, err
 	}
 
 	reports := make([]domain.AttendanceReport, 0, 2)
-	if input.FirstConnectAt.ShouldGenerateReport() && record.FirstConnectAt != nil {
-		report := s.reportSvc.CreatePendingReport(*record, "clock_in", *record.FirstConnectAt, targetURL)
-		reports = append(reports, report)
-		if err := reportTx.WithTx(tx).Save(ctx, &report); err != nil {
+	if report, ok := s.correctionReportForField(*record, "clock_in", originalFirst, input.FirstConnectAt, targetURL); ok {
+		reports = append(reports, *report)
+		if err := reportTx.WithTx(tx).Save(ctx, report); err != nil {
 			_ = tx.Rollback()
 			return nil, err
 		}
 	}
-	if input.LastDisconnectAt.ShouldGenerateReport() && record.LastDisconnectAt != nil {
-		report := s.reportSvc.CreatePendingReport(*record, "clock_out", *record.LastDisconnectAt, targetURL)
-		reports = append(reports, report)
-		if err := reportTx.WithTx(tx).Save(ctx, &report); err != nil {
+	if report, ok := s.correctionReportForField(*record, "clock_out", originalLast, input.LastDisconnectAt, targetURL); ok {
+		reports = append(reports, *report)
+		if err := reportTx.WithTx(tx).Save(ctx, report); err != nil {
 			_ = tx.Rollback()
 			return nil, err
 		}
@@ -442,4 +449,34 @@ func (s *AttendanceAdminService) reportTargetURL(ctx context.Context) (string, e
 
 func normalizeMACAddress(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func timePointerEqual(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+
+	return a.Equal(*b)
+}
+
+func (s *AttendanceAdminService) correctionReportForField(record domain.AttendanceRecord, reportType string, original *time.Time, input OptionalTimeField, targetURL string) (*domain.AttendanceReport, bool) {
+	if !input.Provided {
+		return nil, false
+	}
+
+	if input.Valid {
+		if input.Value == nil || timePointerEqual(original, input.Value) {
+			return nil, false
+		}
+
+		report := s.reportSvc.CreatePendingReport(record, reportType, *input.Value, targetURL)
+		return &report, true
+	}
+
+	if original == nil {
+		return nil, false
+	}
+
+	report := s.reportSvc.CreateClearReport(record, reportType, targetURL)
+	return &report, true
 }

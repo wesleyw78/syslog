@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"regexp"
 	"strings"
 	"testing"
@@ -88,6 +89,38 @@ func TestSettingsAdminServiceUpdateBatchPersistsOnlyKnownKeys(t *testing.T) {
 
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("expected all sql expectations to be met, got %v", err)
+	}
+}
+
+func TestSettingsAdminServiceRejectsDuplicateKeysInBatch(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("expected sqlmock db, got %v", err)
+	}
+	defer db.Close()
+
+	repo := repository.NewMySQLSystemSettingRepository(db)
+	service := NewSettingsAdminService(db, repo)
+
+	now := time.Date(2026, 3, 21, 8, 0, 0, 0, time.UTC)
+	rows := sqlmock.NewRows([]string{"id", "setting_key", "setting_value", "updated_at"}).
+		AddRow(uint64(1), "day_end_time", "23:59", now)
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT id, setting_key, setting_value, updated_at
+		FROM system_settings
+		ORDER BY setting_key ASC
+	`))).WillReturnRows(rows)
+
+	_, err = service.UpdateSettings(context.Background(), []SettingWriteInput{
+		{SettingKey: "day_end_time", SettingValue: "22:00"},
+		{SettingKey: "day_end_time", SettingValue: "21:00"},
+	})
+	if !errors.Is(err, ErrInvalidSettingsInput) {
+		t.Fatalf("expected duplicate batch to be invalid, got %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("expected duplicate-key validation to stop before writes, got %v", err)
 	}
 }
 

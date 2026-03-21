@@ -283,7 +283,7 @@ UPDATE employees
 SET employee_no = ?, system_no = ?, name = ?, status = ?
 WHERE id = ?`
 
-	_, err := r.db.ExecContext(
+	result, err := r.db.ExecContext(
 		ctx,
 		trimSQL(query),
 		employee.EmployeeNo,
@@ -292,7 +292,19 @@ WHERE id = ?`
 		employee.Status,
 		employee.ID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
 }
 
 func (r *MySQLEmployeeRepository) Disable(ctx context.Context, id uint64) error {
@@ -301,8 +313,20 @@ UPDATE employees
 SET status = ?
 WHERE id = ?`
 
-	_, err := r.db.ExecContext(ctx, trimSQL(query), "disabled", id)
-	return err
+	result, err := r.db.ExecContext(ctx, trimSQL(query), "disabled", id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
 }
 
 func (r *MySQLEmployeeRepository) ReplaceDevices(ctx context.Context, employeeID uint64, devices []domain.EmployeeDevice) error {

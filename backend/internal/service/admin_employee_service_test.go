@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"syslog/internal/repository"
@@ -49,6 +51,18 @@ func TestEmployeeAdminServiceCreatePersistsEmployeeAndDevices(t *testing.T) {
 		WithArgs(int64(11), "aa:bb:cc:dd:ee:ff", "iPhone", "active").
 		WillReturnResult(sqlmock.NewResult(21, 1))
 	mock.ExpectCommit()
+	now := time.Date(2026, 3, 21, 8, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
+		FROM employees e
+		LEFT JOIN employee_devices d ON d.employee_id = e.id
+		WHERE e.id = ?
+		ORDER BY d.id ASC
+	`))).
+		WithArgs(uint64(11)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
+			AddRow(uint64(11), "EMP-001", "SYS-001", "Alice", "active", now, now, uint64(21), "aa:bb:cc:dd:ee:ff", "iPhone", "active", now, now))
 
 	got, err := service.CreateEmployee(context.Background(), EmployeeWriteInput{
 		EmployeeNo: "EMP-001",
@@ -69,7 +83,7 @@ func TestEmployeeAdminServiceCreatePersistsEmployeeAndDevices(t *testing.T) {
 	if got.ID != 11 {
 		t.Fatalf("expected inserted employee id 11, got %d", got.ID)
 	}
-	if len(got.Devices) != 1 || got.Devices[0].MacAddress != "aa:bb:cc:dd:ee:ff" {
+	if len(got.Devices) != 1 || got.Devices[0].ID != 21 || got.Devices[0].CreatedAt.IsZero() || got.Devices[0].UpdatedAt.IsZero() {
 		t.Fatalf("expected normalized device list, got %+v", got.Devices)
 	}
 
@@ -123,6 +137,19 @@ func TestEmployeeAdminServiceUpdateReplacesDevices(t *testing.T) {
 		WithArgs(int64(11), "aa:bb:cc:dd:ee:11", "Tablet", "disabled").
 		WillReturnResult(sqlmock.NewResult(23, 1))
 	mock.ExpectCommit()
+	now := time.Date(2026, 3, 21, 8, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
+		FROM employees e
+		LEFT JOIN employee_devices d ON d.employee_id = e.id
+		WHERE e.id = ?
+		ORDER BY d.id ASC
+	`))).
+		WithArgs(uint64(11)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
+			AddRow(uint64(11), "EMP-002", "SYS-002", "Bob", "active", now, now, uint64(22), "11:22:33:44:55:66", "Laptop", "active", now, now).
+			AddRow(uint64(11), "EMP-002", "SYS-002", "Bob", "active", now, now, uint64(23), "aa:bb:cc:dd:ee:11", "Tablet", "disabled", now, now))
 
 	got, err := service.UpdateEmployee(context.Background(), 11, EmployeeWriteInput{
 		EmployeeNo: "EMP-002",
@@ -150,6 +177,9 @@ func TestEmployeeAdminServiceUpdateReplacesDevices(t *testing.T) {
 	}
 	if len(got.Devices) != 2 {
 		t.Fatalf("expected 2 devices, got %d", len(got.Devices))
+	}
+	if got.Devices[0].ID != 22 || got.Devices[1].ID != 23 {
+		t.Fatalf("expected real device metadata, got %+v", got.Devices)
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -183,6 +213,18 @@ func TestEmployeeAdminServiceDisableDisablesEmployeeAndDevices(t *testing.T) {
 		WithArgs("disabled", int64(11)).
 		WillReturnResult(sqlmock.NewResult(0, 2))
 	mock.ExpectCommit()
+	now := time.Date(2026, 3, 21, 8, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
+		FROM employees e
+		LEFT JOIN employee_devices d ON d.employee_id = e.id
+		WHERE e.id = ?
+		ORDER BY d.id ASC
+	`))).
+		WithArgs(uint64(11)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
+			AddRow(uint64(11), "EMP-001", "SYS-001", "Alice", "disabled", now, now, uint64(21), "aa:bb:cc:dd:ee:ff", "iPhone", "disabled", now, now))
 
 	got, err := service.DisableEmployee(context.Background(), 11)
 	if err != nil {
@@ -190,6 +232,9 @@ func TestEmployeeAdminServiceDisableDisablesEmployeeAndDevices(t *testing.T) {
 	}
 	if got.Status != "disabled" {
 		t.Fatalf("expected disabled employee status, got %s", got.Status)
+	}
+	if got.Devices[0].Status != "disabled" || got.Devices[0].ID != 21 {
+		t.Fatalf("expected real employee reload after disable, got %+v", got.Devices)
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -255,5 +300,70 @@ func TestEmployeeAdminServiceCreateRollsBackWhenDeviceInsertFails(t *testing.T) 
 
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("expected transaction rollback expectations to be met, got %v", err)
+	}
+}
+
+func TestEmployeeAdminServiceUpdateReturnsNotFoundWhenEmployeeMissing(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("expected sqlmock db, got %v", err)
+	}
+	defer db.Close()
+
+	repo := repository.NewMySQLEmployeeRepository(db)
+	service := NewEmployeeAdminService(db, repo)
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
+		UPDATE employees
+		SET employee_no = ?, system_no = ?, name = ?, status = ?
+		WHERE id = ?
+	`))).
+		WithArgs("EMP-404", "SYS-404", "Nobody", "active", int64(404)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	_, err = service.UpdateEmployee(context.Background(), 404, EmployeeWriteInput{
+		EmployeeNo: "EMP-404",
+		SystemNo:   "SYS-404",
+		Name:       "Nobody",
+		Status:     "active",
+	})
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("expected not found error, got %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("expected not found rollback expectations to be met, got %v", err)
+	}
+}
+
+func TestEmployeeAdminServiceDisableReturnsNotFoundWhenEmployeeMissing(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("expected sqlmock db, got %v", err)
+	}
+	defer db.Close()
+
+	repo := repository.NewMySQLEmployeeRepository(db)
+	service := NewEmployeeAdminService(db, repo)
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
+		UPDATE employees
+		SET status = ?
+		WHERE id = ?
+	`))).
+		WithArgs("disabled", int64(404)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	_, err = service.DisableEmployee(context.Background(), 404)
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("expected not found error, got %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("expected not found rollback expectations to be met, got %v", err)
 	}
 }
