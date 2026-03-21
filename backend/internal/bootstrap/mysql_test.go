@@ -79,9 +79,45 @@ func TestOpenMySQLBuildsDSNFromSplitFields(t *testing.T) {
 	if _, err := OpenMySQL(cfg); err != nil {
 		t.Fatalf("expected open mysql to succeed, got %v", err)
 	}
-	for _, fragment := range []string{"syslog:secret@tcp(127.0.0.1:3306)/syslog?", "charset=utf8mb4", "parseTime=true", "loc=Asia%2FShanghai", "multiStatements=true"} {
+	for _, fragment := range []string{"syslog:secret@tcp(127.0.0.1:3306)/syslog?", "parseTime=true", "loc=Asia%2FShanghai", "multiStatements=true"} {
 		if !strings.Contains(capturedDSN, fragment) {
 			t.Fatalf("expected dsn to contain %s, got %s", fragment, capturedDSN)
+		}
+	}
+}
+
+func TestOpenMySQLSplitFieldsIgnoreConflictingControlledParams(t *testing.T) {
+	originalOpenDB := openDB
+	defer func() { openDB = originalOpenDB }()
+
+	capturedDSN := ""
+	openDB = func(driverName, dsn string) (*sql.DB, error) {
+		capturedDSN = dsn
+
+		db, _, err := sqlmock.New()
+		return db, err
+	}
+
+	cfg := config.Config{
+		MySQLHost:     "127.0.0.1",
+		MySQLPort:     3306,
+		MySQLUser:     "syslog",
+		MySQLPassword: "secret",
+		MySQLDatabase: "syslog",
+		MySQLParams:   "charset=utf8mb4&parseTime=false&loc=UTC&multiStatements=false&foo=bar",
+	}
+
+	if _, err := OpenMySQL(cfg); err != nil {
+		t.Fatalf("expected open mysql to succeed, got %v", err)
+	}
+	for _, fragment := range []string{"parseTime=false", "loc=UTC", "multiStatements=false"} {
+		if strings.Contains(capturedDSN, fragment) {
+			t.Fatalf("expected normalized dsn to drop controlled param %s, got %s", fragment, capturedDSN)
+		}
+	}
+	for _, fragment := range []string{"parseTime=true", "loc=Asia%2FShanghai", "multiStatements=true", "foo=bar"} {
+		if !strings.Contains(capturedDSN, fragment) {
+			t.Fatalf("expected normalized dsn to contain %s, got %s", fragment, capturedDSN)
 		}
 	}
 }

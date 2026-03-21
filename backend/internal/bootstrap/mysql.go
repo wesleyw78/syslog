@@ -54,7 +54,7 @@ func buildMySQLDSN(cfg config.Config) (string, error) {
 		mysqlConfig.Params["charset"] = "utf8mb4"
 	}
 	for key, value := range params {
-		if key == "charset" || value == "" {
+		if isControlledMySQLParam(key) || value == "" {
 			continue
 		}
 
@@ -81,6 +81,21 @@ func normalizeMySQLConfig(cfg *mysql.Config, locationName string) {
 
 	if cfg.Params == nil {
 		cfg.Params = map[string]string{}
+	}
+
+	for key := range cfg.Params {
+		if isControlledMySQLParam(key) {
+			delete(cfg.Params, key)
+		}
+	}
+}
+
+func isControlledMySQLParam(key string) bool {
+	switch key {
+	case "charset", "parseTime", "multiStatements", "loc":
+		return true
+	default:
+		return false
 	}
 }
 
