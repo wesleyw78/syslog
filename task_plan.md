@@ -1,10 +1,10 @@
-# Task Plan: Syslog Work Items
+# Task Plan: Syslog Server Initialization
 
 ## Goal
-推进 syslog 项目相关任务，并对当前活跃工作项保留可恢复的审查/实现上下文。
+初始化一个可运行的 syslog 服务端项目，包含 React 前端、Golang 后端和 MySQL 数据存储，并覆盖 AP syslog 消息接收、事件处理、消息存储、考勤汇总与外部 API 上报能力。
 
 ## Current Phase
-Phase 8
+Phase 1
 
 ## Phases
 ### Phase 1: Requirements & Discovery
@@ -44,21 +44,6 @@ Phase 8
 - [ ] 完成交付
 - **Status:** pending
 
-### Phase 7: Task 11 Code Review
-- [x] 锁定 review 范围为 `c8670979908d4255bae67c094c72d7dd362ab5c5..HEAD`
-- [x] 审查 pipeline、handler、bootstrap/main 关键路径
-- [x] 审查测试覆盖与行为锁定程度
-- [x] 输出按严重级别分组的 review 结论
-- **Status:** complete
-
-### Phase 8: Task 12 Admin Write APIs
-- [x] 先补失败测试，覆盖 employee create/update/disable、settings batch save、attendance correction 与回滚场景
-- [x] 实现员工资料、系统配置、人工修正的后端写接口
-- [x] 补齐 router/bootstrap 依赖注入
-- [x] 运行并通过 `go test ./internal/service ./internal/http/handlers ./internal/repository -v`
-- [x] 运行并通过 `go test ./...`
-- **Status:** complete
-
 ## Key Questions
 1. 原始 syslog 的保留天数是否需要前端可配置？
 2. 是否需要支持手工触发“重新汇总并重发某一天”的补偿操作？
@@ -70,7 +55,6 @@ Phase 8
 | 使用文件化计划推进整个初始化任务 | 任务跨前后端与数据库，步骤多，便于持续记录与恢复上下文 |
 | 先做需求澄清与方案确认，再进入实现 | 符合 KISS/YAGNI，避免在协议范围和 MVP 边界不清时过度设计 |
 | “发送消息”模块按业务上报设计，而不是 syslog 转发 | 用户明确说明输出是基于分析结果调用外部 API 发送其他类型消息 |
-| 本轮仅审查 Task 11 的净变更，不扩展到无关文件 | 保持 review 聚焦，减少噪音并提高结论可追溯性 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

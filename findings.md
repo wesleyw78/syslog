@@ -32,17 +32,6 @@
 - 首版只配置一个外部服务器作为考勤上报目标。
 
 ## Research Findings
-- 针对提交 `ad1e707eb488b8961c6f6e4951a985853f23d37b` 的复核显示：`AttendanceProcessor` 在更早 `connect` 改写 `FirstConnectAt` 时已同步置 `ClockInNeedsReport=true`，pipeline 会继续生成新的 pending `clock_in` report。
-- pipeline 现已把 `attendance + pending report` 放进最小事务：bootstrap 注入 `DB`，MySQL attendance/report repository 提供 `WithTx`，`saveAttendanceAndReportWithTx` 在 report 保存失败时回滚。
-- `/api/attendance` 已改为按 `Asia/Shanghai` 的日边界计算窗口，范围为当前日结束时间向前 29 天的当日 00:00，共覆盖 30 个自然日。
-- 新增测试覆盖了更早 `connect` 生成新 report、report 保存失败触发事务回滚，以及 attendance handler 的窗口边界；`backend` 全量测试通过。
-- Task 11 review 范围按用户指定锁定为 `c8670979908d4255bae67c094c72d7dd362ab5c5..HEAD`。
-- 指定主功能文件在该范围内共 12 个文件发生变化，约 999 行新增、77 行删除。
-- 变更集中在 `syslog_pipeline`、HTTP handlers/router、bootstrap/main 与对应测试。
-- `syslog_pipeline` 当前按“消息 -> 事件 -> 考勤 -> 报告”顺序逐步落库，但没有事务边界；一旦考勤保存后、报告保存前失败，会留下已更新的考勤而没有对应报告。
-- `AttendanceProcessor` 会在已有首连时间时继续接受更早的 `connect` 事件并改写 `FirstConnectAt`，但不会触发新的 report 需求标记。
-- `attendance` handler 使用 `time.Now().In(Asia/Shanghai)` 直接计算 `[now-30d, now]`，而 repository 按 `DATE attendance_date BETWEEN ? AND ?` 查询；起始日午夜之前的数据会被排除。
-- 当前新增测试主要锁定 happy path JSON 输出、bootstrap 成功装配，以及 pipeline 成功/parse-failure 路径；对中途失败、边界时间窗、out-of-order connect、去重命中等行为没有覆盖。
 - 当前项目目录为空，没有现有代码、文档或脚手架可复用。
 - 当前目录还不是 git 仓库，说明需要按初始化项目处理。
 - 因为包含前端、后端、数据库和协议能力，这属于多阶段复杂任务，需要持续规划和记录。
@@ -72,13 +61,6 @@
 | 外部上报必须做幂等保护 | 避免重试、调度补偿或人工操作导致重复考勤数据发送 |
 | 首版不引入账号体系 | 符合内网单管理员场景，减少非核心功能，践行 YAGNI |
 | 首版仅支持单一外部上报目标 | 先收敛接口配置与投递逻辑，降低系统复杂度 |
-
-## Task 12 Findings
-- 员工写接口的最小闭环需要把 `employees` 与 `employee_devices` 放进同一事务，否则设备写入失败会留下半成品员工记录。
-- 系统配置批量更新不需要动态 schema；只要基于当前 `system_settings` 列表做白名单校验并逐条 upsert 即可。
-- 人工修正的核心不是“改时间”本身，而是“改时间 + version 递增 + pending report 重建”，否则外部上报无法区分新旧修正。
-- `attendance_records` 按 `id` 查找是人工修正所必需的主链路扩展，不能只依赖 `employee_id + date`。
-- HTTP 层保持薄，service 层承担事务和领域规则，能让 handler/router 测试保持简单且可复用。
 
 ## Issues Encountered
 | Issue | Resolution |
