@@ -1,27 +1,33 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
+	"time"
+
+	"syslog/internal/repository"
 )
 
-type listResponse struct {
-	Items []any `json:"items"`
-}
+var asiaShanghai = time.FixedZone("Asia/Shanghai", 8*3600)
 
-func NewAttendanceHandler() http.HandlerFunc {
+func NewAttendanceHandler(repo repository.AttendanceRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, listResponse{
-			Items: make([]any, 0),
-		})
-	}
-}
+		if repo == nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
 
-func writeJSON(w http.ResponseWriter, status int, payload any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
+		now := time.Now().In(asiaShanghai)
+		records, err := repo.ListByDateRange(r.Context(), now.AddDate(0, 0, -30), now)
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
 
-	if err := json.NewEncoder(w).Encode(payload); err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		items := make([]any, 0, len(records))
+		for _, record := range records {
+			items = append(items, record)
+		}
+
+		writeJSON(w, http.StatusOK, listResponse{Items: items})
 	}
 }

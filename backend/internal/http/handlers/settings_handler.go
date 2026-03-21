@@ -1,11 +1,29 @@
 package handlers
 
-import "net/http"
+import (
+	"net/http"
 
-func NewSettingsHandler() http.HandlerFunc {
+	"syslog/internal/repository"
+)
+
+func NewSettingsHandler(repo repository.SystemSettingRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, listResponse{
-			Items: make([]any, 0),
-		})
+		if repo == nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		settings, err := repo.List(r.Context())
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		items := make([]any, 0, len(settings))
+		for _, setting := range settings {
+			items = append(items, setting)
+		}
+
+		writeJSON(w, http.StatusOK, listResponse{Items: items})
 	}
 }

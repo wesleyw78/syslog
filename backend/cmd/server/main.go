@@ -21,18 +21,35 @@ import (
 const adminHTTPAddr = ":8080"
 
 func main() {
-	app := bootstrap.New(os.Getenv)
+	app, err := bootstrap.New(os.Getenv)
+	if err != nil {
+		log.Fatalf("bootstrap app: %v", err)
+	}
+	defer func() {
+		if err := app.Close(); err != nil {
+			log.Printf("close app: %v", err)
+		}
+	}()
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	dayEndService := service.NewDayEndService()
 	dayEndCron := scheduler.NewCron(dayEndService)
-	adminServer := httpapi.NewServer(adminHTTPAddr, httpapi.Dependencies{})
+	adminServer := httpapi.NewServer(adminHTTPAddr, httpapi.Dependencies{
+		Employees:      app.Repositories.Employees,
+		SyslogMessages: app.Repositories.SyslogMessages,
+		ClientEvents:   app.Repositories.ClientEvents,
+		Attendance:     app.Repositories.Attendance,
+		Settings:       app.Repositories.Settings,
+	})
 	udpListener := ingest.NewUDPListener("", func(ctx context.Context, payload []byte, addr net.Addr) error {
-		_ = ctx
-		_ = payload
-		_ = addr
-		return nil
+		receivedAt := time.Now()
+		if app.Location != nil {
+			receivedAt = receivedAt.In(app.Location)
+		}
+
+		return app.Services.SyslogPipeline.Handle(ctx, payload, addr, receivedAt)
 	})
 
 	if err := udpListener.Start(); err != nil {
