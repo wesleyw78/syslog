@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"regexp"
 	"strings"
 	"testing"
@@ -185,8 +184,8 @@ func TestMySQLEmployeeRepositoryCreateUpdateDisableAndReplaceDevices(t *testing.
 		WHERE id = ?
 	`))).WithArgs("EMP-001", "SYS-001", "Alice Updated", "active", uint64(12)).
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	if err := repo.Update(context.Background(), &domain.Employee{ID: 12, EmployeeNo: "EMP-001", SystemNo: "SYS-001", Name: "Alice Updated", Status: "active"}); !errors.Is(err, sql.ErrNoRows) {
-		t.Fatalf("expected update to return not found, got %v", err)
+	if err := repo.Update(context.Background(), &domain.Employee{ID: 12, EmployeeNo: "EMP-001", SystemNo: "SYS-001", Name: "Alice Updated", Status: "active"}); err != nil {
+		t.Fatalf("expected update no-op to succeed, got %v", err)
 	}
 
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
@@ -205,8 +204,8 @@ func TestMySQLEmployeeRepositoryCreateUpdateDisableAndReplaceDevices(t *testing.
 		WHERE id = ?
 	`))).WithArgs("disabled", uint64(12)).
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	if err := repo.Disable(context.Background(), 12); !errors.Is(err, sql.ErrNoRows) {
-		t.Fatalf("expected disable to return not found, got %v", err)
+	if err := repo.Disable(context.Background(), 12); err != nil {
+		t.Fatalf("expected disable no-op to succeed, got %v", err)
 	}
 
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`

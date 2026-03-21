@@ -64,6 +64,9 @@ func (s *EmployeeAdminService) DisableEmployee(ctx context.Context, id uint64) (
 	if s.db == nil {
 		return nil, errors.New("database is required")
 	}
+	if _, err := s.repo.FindByID(ctx, id); err != nil {
+		return nil, err
+	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -97,6 +100,11 @@ func (s *EmployeeAdminService) saveEmployee(ctx context.Context, id uint64, inpu
 	employee, devices, err := normalizeEmployeeInput(id, input)
 	if err != nil {
 		return nil, err
+	}
+	if !creating {
+		if _, err := s.repo.FindByID(ctx, id); err != nil {
+			return nil, err
+		}
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)

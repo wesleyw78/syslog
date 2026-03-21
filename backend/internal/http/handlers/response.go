@@ -1,15 +1,14 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 
-	"database/sql"
 	"github.com/go-sql-driver/mysql"
 
 	"syslog/internal/service"
@@ -87,9 +86,5 @@ func isDuplicateKeyError(err error) bool {
 	}
 
 	var mysqlErr *mysql.MySQLError
-	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
-		return true
-	}
-
-	return strings.Contains(strings.ToLower(err.Error()), "duplicate")
+	return errors.As(err, &mysqlErr) && mysqlErr.Number == 1062
 }

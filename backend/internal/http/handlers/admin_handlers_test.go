@@ -58,12 +58,13 @@ type fakeAttendanceAdminWriter struct {
 	id     uint64
 	input  service.AttendanceCorrectionInput
 	result *service.AttendanceCorrectionResult
+	err    error
 }
 
 func (f *fakeAttendanceAdminWriter) CorrectAttendance(_ context.Context, id uint64, input service.AttendanceCorrectionInput) (*service.AttendanceCorrectionResult, error) {
 	f.id = id
 	f.input = input
-	return f.result, nil
+	return f.result, f.err
 }
 
 func TestAdminWriteRoutes(t *testing.T) {
@@ -272,6 +273,27 @@ func TestAdminWriteRoutesReturnExpectedErrorStatuses(t *testing.T) {
 
 		if resp.Code != http.StatusBadRequest {
 			t.Fatalf("expected bad request, got %d", resp.Code)
+		}
+	})
+
+	t.Run("missing attendance correction returns not found", func(t *testing.T) {
+		router := httpapi.NewRouter(httpapi.Dependencies{
+			Employees:       &fakeEmployeeRepo{},
+			EmployeeAdmin:   &fakeEmployeeAdminWriter{},
+			Attendance:      &fakeAttendanceRepo{},
+			AttendanceAdmin: &fakeAttendanceAdminWriter{err: sql.ErrNoRows},
+			Settings:        &fakeSystemSettingRepo{},
+			SettingsAdmin:   &fakeSettingsAdminWriter{},
+		})
+
+		body := `{"firstConnectAt":"2026-03-21T08:10:00+08:00"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/attendance/55/correction", strings.NewReader(body))
+		resp := httptest.NewRecorder()
+
+		router.ServeHTTP(resp, req)
+
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("expected not found, got %d", resp.Code)
 		}
 	})
 }
