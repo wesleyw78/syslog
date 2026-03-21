@@ -8,6 +8,7 @@ import (
 )
 
 var asiaShanghai = time.FixedZone("Asia/Shanghai", 8*3600)
+var attendanceNow = time.Now
 
 func NewAttendanceHandler(repo repository.AttendanceRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -16,8 +17,8 @@ func NewAttendanceHandler(repo repository.AttendanceRepository) http.HandlerFunc
 			return
 		}
 
-		now := time.Now().In(asiaShanghai)
-		records, err := repo.ListByDateRange(r.Context(), now.AddDate(0, 0, -30), now)
+		from, to := attendanceWindow(attendanceNow())
+		records, err := repo.ListByDateRange(r.Context(), from, to)
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
@@ -30,4 +31,22 @@ func NewAttendanceHandler(repo repository.AttendanceRepository) http.HandlerFunc
 
 		writeJSON(w, http.StatusOK, listResponse{Items: items})
 	}
+}
+
+func attendanceWindow(now time.Time) (time.Time, time.Time) {
+	now = now.In(asiaShanghai)
+	currentDayStart := startOfDay(now)
+	from := currentDayStart.AddDate(0, 0, -29)
+	to := endOfDay(now)
+	return from, to
+}
+
+func startOfDay(value time.Time) time.Time {
+	y, m, d := value.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, asiaShanghai)
+}
+
+func endOfDay(value time.Time) time.Time {
+	y, m, d := value.Date()
+	return time.Date(y, m, d, 23, 59, 59, 999999999, asiaShanghai)
 }

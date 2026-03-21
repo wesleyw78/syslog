@@ -16,6 +16,7 @@ import (
 const reportTargetURLSettingKey = "report_target_url"
 
 type SyslogPipelineDeps struct {
+	DB             *sql.DB
 	Messages       repository.SyslogMessageRepository
 	Events         repository.ClientEventRepository
 	Employees      repository.EmployeeRepository
@@ -28,6 +29,7 @@ type SyslogPipelineDeps struct {
 }
 
 type SyslogPipeline struct {
+	db             *sql.DB
 	messages       repository.SyslogMessageRepository
 	events         repository.ClientEventRepository
 	employees      repository.EmployeeRepository
@@ -48,6 +50,7 @@ func NewSyslogPipeline(deps SyslogPipelineDeps) *SyslogPipeline {
 	}
 
 	return &SyslogPipeline{
+		db:             deps.DB,
 		messages:       deps.Messages,
 		events:         deps.Events,
 		employees:      deps.Employees,
@@ -116,14 +119,8 @@ func (p *SyslogPipeline) Handle(ctx context.Context, payload []byte, addr net.Ad
 	}
 
 	result := p.attendanceProc.ApplyEvent(*record, *employee, event)
-	if p.attendance != nil {
-		if err := p.attendance.Save(ctx, &result.Record); err != nil {
-			return err
-		}
-	}
-
 	if !result.ClockInNeedsReport {
-		return nil
+		return p.saveAttendanceOnly(ctx, result.Record)
 	}
 
 	reportType := "clock_in"
@@ -134,12 +131,22 @@ func (p *SyslogPipeline) Handle(ctx context.Context, payload []byte, addr net.Ad
 		return err
 	}
 	if existing != nil {
-		return nil
+		return p.saveAttendanceOnly(ctx, result.Record)
 	}
 
 	targetURL, err := p.reportTargetURL(ctx)
 	if err != nil {
 		return err
+	}
+
+	if p.db != nil {
+		return p.saveAttendanceAndReportWithTx(ctx, result.Record, reportType, reportTime, targetURL)
+	}
+
+	if p.attendance != nil {
+		if err := p.attendance.Save(ctx, &result.Record); err != nil {
+			return err
+		}
 	}
 
 	report := p.reportSvc.CreatePendingReport(result.Record, reportType, reportTime, targetURL)
@@ -150,6 +157,14 @@ func (p *SyslogPipeline) Handle(ctx context.Context, payload []byte, addr net.Ad
 	}
 
 	return nil
+}
+
+func (p *SyslogPipeline) saveAttendanceOnly(ctx context.Context, record domain.AttendanceRecord) error {
+	if p.attendance == nil {
+		return nil
+	}
+
+	return p.attendance.Save(ctx, &record)
 }
 
 func (p *SyslogPipeline) matchEmployee(ctx context.Context, stationMac string) (*domain.Employee, error) {
@@ -218,6 +233,51 @@ func (p *SyslogPipeline) reportTargetURL(ctx context.Context) (string, error) {
 	}
 
 	return strings.TrimSpace(setting.SettingValue), nil
+}
+
+type attendanceTxRepository interface {
+	WithTx(*sql.Tx) repository.AttendanceRepository
+}
+
+type reportTxRepository interface {
+	WithTx(*sql.Tx) repository.ReportRepository
+}
+
+func (p *SyslogPipeline) saveAttendanceAndReportWithTx(ctx context.Context, record domain.AttendanceRecord, reportType string, reportTime time.Time, targetURL string) (err error) {
+	tx, err := p.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	attendanceRepo, ok := p.attendance.(attendanceTxRepository)
+	if !ok {
+		return errors.New("attendance repository does not support tx")
+	}
+	reportRepo, ok := p.reports.(reportTxRepository)
+	if !ok {
+		return errors.New("report repository does not support tx")
+	}
+
+	if err = attendanceRepo.WithTx(tx).Save(ctx, &record); err != nil {
+		return err
+	}
+
+	report := p.reportSvc.CreatePendingReport(record, reportType, reportTime, targetURL)
+	if err = reportRepo.WithTx(tx).Save(ctx, &report); err != nil {
+		return err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func sourceIPFromAddr(addr net.Addr) string {

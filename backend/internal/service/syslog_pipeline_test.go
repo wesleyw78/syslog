@@ -5,9 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"syslog/internal/domain"
 	"syslog/internal/repository"
 )
@@ -272,6 +275,188 @@ func TestSyslogPipelineHandleParseFailureOnlyPersistsRawMessage(t *testing.T) {
 	}
 	if len(eventRepo.saved) != 0 || len(attendanceRepo.saved) != 0 || len(reportRepo.saved) != 0 {
 		t.Fatalf("expected no downstream records on parse failure, got events=%d attendance=%d reports=%d", len(eventRepo.saved), len(attendanceRepo.saved), len(reportRepo.saved))
+	}
+}
+
+func TestSyslogPipelineHandleEarlierConnectCreatesNewClockInReport(t *testing.T) {
+	location := time.FixedZone("CST", 8*3600)
+	receivedAt := time.Date(2026, 3, 21, 7, 50, 0, 0, location)
+	raw := "Mar 21 07:50:00 stamgr: client_footprints connect Station[94:89:78:55:9a:f3] AP[28:b3:71:25:ae:a0] ssid[FactoryOps] osvendor[Unknown] hostname[scanner-01]"
+	existingFirstConnect := time.Date(2026, 3, 21, 8, 10, 0, 0, location)
+
+	messageRepo := &fakePipelineSyslogMessageRepo{}
+	eventRepo := &fakePipelineClientEventRepo{}
+	employeeRepo := &fakePipelineEmployeeRepo{
+		employee: &domain.Employee{ID: 42, EmployeeNo: "EMP-042", Name: "Alice", Status: "active"},
+	}
+	attendanceRepo := &fakePipelineAttendanceRepo{
+		found: &domain.AttendanceRecord{
+			ID:              1001,
+			EmployeeID:      42,
+			AttendanceDate:  time.Date(2026, 3, 21, 0, 0, 0, 0, location),
+			FirstConnectAt:  &existingFirstConnect,
+			ClockInStatus:   "pending",
+			ClockOutStatus:  "pending",
+			ExceptionStatus: "none",
+			SourceMode:      "syslog",
+			Version:         1,
+		},
+	}
+	reportRepo := &fakePipelineReportRepo{findErr: sql.ErrNoRows}
+	settingsRepo := &fakePipelineSettingRepo{
+		settings: map[string]string{
+			"report_target_url": "http://example.test/report",
+		},
+	}
+
+	pipeline := NewSyslogPipeline(SyslogPipelineDeps{
+		Messages:       messageRepo,
+		Events:         eventRepo,
+		Employees:      employeeRepo,
+		Attendance:     attendanceRepo,
+		Reports:        reportRepo,
+		Settings:       settingsRepo,
+		RetentionDays:  30,
+		AttendanceProc: NewAttendanceProcessor(),
+		ReportSvc:      NewReportService(),
+	})
+
+	if err := pipeline.Handle(context.Background(), []byte(raw), &net.UDPAddr{IP: net.ParseIP("10.0.0.7"), Port: 1514}, receivedAt); err != nil {
+		t.Fatalf("expected pipeline to succeed, got %v", err)
+	}
+
+	if len(attendanceRepo.saved) != 1 {
+		t.Fatalf("expected attendance to be saved once, got %d", len(attendanceRepo.saved))
+	}
+	if attendanceRepo.saved[0].FirstConnectAt == nil || !attendanceRepo.saved[0].FirstConnectAt.Equal(receivedAt) {
+		t.Fatalf("expected first connect to move earlier to %s, got %+v", receivedAt, attendanceRepo.saved[0].FirstConnectAt)
+	}
+	if len(reportRepo.saved) != 1 {
+		t.Fatalf("expected new clock_in report to be saved, got %d", len(reportRepo.saved))
+	}
+	if len(reportRepo.findCalls) != 1 {
+		t.Fatalf("expected one idempotency lookup, got %d", len(reportRepo.findCalls))
+	}
+	if reportRepo.saved[0].ReportType != "clock_in" {
+		t.Fatalf("expected clock_in report, got %q", reportRepo.saved[0].ReportType)
+	}
+}
+
+func TestSyslogPipelineHandleReportSaveFailureDoesNotLeaveHalfWrittenAttendance(t *testing.T) {
+	location := time.FixedZone("CST", 8*3600)
+	receivedAt := time.Date(2026, 3, 21, 8, 1, 0, 0, location)
+	attendanceDate := time.Date(2026, 3, 21, 0, 0, 0, 0, location)
+	raw := "Mar 21 08:01:00 stamgr: client_footprints connect Station[94:89:78:55:9a:f3] AP[28:b3:71:25:ae:a0] ssid[FactoryOps] osvendor[Unknown] hostname[scanner-01]"
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("expected sqlmock db, got %v", err)
+	}
+	defer db.Close()
+
+	messageRepo := &fakePipelineSyslogMessageRepo{}
+	eventRepo := &fakePipelineClientEventRepo{}
+	employeeRepo := &fakePipelineEmployeeRepo{
+		employee: &domain.Employee{ID: 42, EmployeeNo: "EMP-042", Name: "Alice", Status: "active"},
+	}
+	settingsRepo := &fakePipelineSettingRepo{
+		settings: map[string]string{
+			"report_target_url": "http://example.test/report",
+		},
+	}
+
+	attendanceRepo := repository.NewMySQLAttendanceRepository(db)
+	reportRepo := repository.NewMySQLReportRepository(db)
+
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT id, employee_id, attendance_date, first_connect_at, last_disconnect_at, clock_in_status, clock_out_status, exception_status, source_mode, version, last_calculated_at
+		FROM attendance_records
+		WHERE employee_id = ? AND attendance_date = ?
+		LIMIT 1
+	`))).
+		WithArgs(int64(42), attendanceDate).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_id", "attendance_date", "first_connect_at", "last_disconnect_at", "clock_in_status", "clock_out_status", "exception_status", "source_mode", "version", "last_calculated_at"}))
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, report_status, response_code, response_body, reported_at, retry_count
+		FROM attendance_reports
+		WHERE idempotency_key = ?
+		LIMIT 1
+	`))).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "attendance_record_id", "report_type", "idempotency_key", "payload_json", "target_url", "report_status", "response_code", "response_body", "reported_at", "retry_count"}))
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
+		INSERT INTO attendance_records (
+			employee_id,
+			attendance_date,
+			first_connect_at,
+			last_disconnect_at,
+			clock_in_status,
+			clock_out_status,
+			exception_status,
+			source_mode,
+			version,
+			last_calculated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+			id = LAST_INSERT_ID(id),
+			first_connect_at = VALUES(first_connect_at),
+			last_disconnect_at = VALUES(last_disconnect_at),
+			clock_in_status = VALUES(clock_in_status),
+			clock_out_status = VALUES(clock_out_status),
+			exception_status = VALUES(exception_status),
+			source_mode = VALUES(source_mode),
+			version = VALUES(version),
+			last_calculated_at = VALUES(last_calculated_at)
+	`))).
+		WillReturnResult(sqlmock.NewResult(1001, 1))
+	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
+		INSERT INTO attendance_reports (
+			attendance_record_id,
+			report_type,
+			idempotency_key,
+			payload_json,
+			target_url,
+			report_status,
+			response_code,
+			response_body,
+			reported_at,
+			retry_count
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+			id = LAST_INSERT_ID(id),
+			attendance_record_id = VALUES(attendance_record_id),
+			report_type = VALUES(report_type),
+			payload_json = VALUES(payload_json),
+			target_url = VALUES(target_url),
+			report_status = VALUES(report_status),
+			response_code = VALUES(response_code),
+			response_body = VALUES(response_body),
+			reported_at = VALUES(reported_at),
+			retry_count = VALUES(retry_count)
+	`))).
+		WillReturnError(sql.ErrConnDone)
+	mock.ExpectRollback()
+
+	pipeline := NewSyslogPipeline(SyslogPipelineDeps{
+		DB:             db,
+		Messages:       messageRepo,
+		Events:         eventRepo,
+		Employees:      employeeRepo,
+		Attendance:     attendanceRepo,
+		Reports:        reportRepo,
+		Settings:       settingsRepo,
+		RetentionDays:  30,
+		AttendanceProc: NewAttendanceProcessor(),
+		ReportSvc:      NewReportService(),
+	})
+
+	if err := pipeline.Handle(context.Background(), []byte(raw), &net.UDPAddr{IP: net.ParseIP("10.0.0.7"), Port: 1514}, receivedAt); err == nil {
+		t.Fatal("expected report save failure to surface")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("expected transaction to roll back, got %v", err)
 	}
 }
 

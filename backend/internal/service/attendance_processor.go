@@ -35,6 +35,7 @@ func (p *AttendanceProcessor) ApplyEvent(record domain.AttendanceRecord, employe
 
 		if event.EventTime.Before(*result.Record.FirstConnectAt) {
 			result.Record.FirstConnectAt = timePointer(event.EventTime)
+			result.ClockInNeedsReport = true
 		}
 	case "disconnect":
 		if result.Record.LastDisconnectAt == nil || event.EventTime.After(*result.Record.LastDisconnectAt) {

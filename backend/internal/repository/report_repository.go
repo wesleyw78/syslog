@@ -14,11 +14,15 @@ type ReportRepository interface {
 }
 
 type MySQLReportRepository struct {
-	db *sql.DB
+	db sqlExecutor
 }
 
 func NewMySQLReportRepository(db *sql.DB) *MySQLReportRepository {
 	return &MySQLReportRepository{db: db}
+}
+
+func (r *MySQLReportRepository) WithTx(tx *sql.Tx) ReportRepository {
+	return &MySQLReportRepository{db: tx}
 }
 
 func (r *MySQLReportRepository) FindByIdempotencyKey(ctx context.Context, idempotencyKey string) (*domain.AttendanceReport, error) {

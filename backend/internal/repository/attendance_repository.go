@@ -14,12 +14,22 @@ type AttendanceRepository interface {
 	ListByDateRange(ctx context.Context, from, to time.Time) ([]domain.AttendanceRecord, error)
 }
 
+type sqlExecutor interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
 type MySQLAttendanceRepository struct {
-	db *sql.DB
+	db sqlExecutor
 }
 
 func NewMySQLAttendanceRepository(db *sql.DB) *MySQLAttendanceRepository {
 	return &MySQLAttendanceRepository{db: db}
+}
+
+func (r *MySQLAttendanceRepository) WithTx(tx *sql.Tx) AttendanceRepository {
+	return &MySQLAttendanceRepository{db: tx}
 }
 
 func (r *MySQLAttendanceRepository) FindByEmployeeAndDate(ctx context.Context, employeeID uint64, attendanceDate time.Time) (*domain.AttendanceRecord, error) {

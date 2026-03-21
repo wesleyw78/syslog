@@ -63,6 +63,7 @@ func New(getenv func(string) string) (App, error) {
 		},
 	}
 	app.Services.SyslogPipeline = service.NewSyslogPipeline(service.SyslogPipelineDeps{
+		DB:            db,
 		Messages:      app.Repositories.SyslogMessages,
 		Events:        app.Repositories.ClientEvents,
 		Employees:     app.Repositories.Employees,
