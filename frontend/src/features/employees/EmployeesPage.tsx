@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   createEmployee,
   disableEmployee,
-  listEmployees,
+  getEmployees,
   type Employee,
-  type EmployeeDraft,
+  type EmployeeUpsertInput,
   updateEmployee,
 } from "../../lib/api";
 import { EmployeeForm } from "./components/EmployeeForm";
@@ -18,20 +18,36 @@ const actionButtonStyle = {
   cursor: "pointer",
 };
 
+function toFormValues(employee: Employee): EmployeeUpsertInput {
+  return {
+    employeeNo: employee.employeeNo,
+    systemNo: employee.systemNo,
+    name: employee.name,
+    status: employee.status,
+    devices: employee.devices.length > 0 ? employee.devices : [
+      {
+        macAddress: "",
+        deviceLabel: "",
+        status: "active",
+      },
+    ],
+  };
+}
+
 export function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
   const [pendingEmployeeId, setPendingEmployeeId] = useState<string | null>(null);
-  const [notice, setNotice] = useState("等待 roster feed...");
+  const [notice, setNotice] = useState("加载员工档案...");
 
   useEffect(() => {
     let isActive = true;
 
     void (async () => {
       try {
-        const items = await listEmployees();
+        const items = await getEmployees();
 
         if (!isActive) {
           return;
@@ -40,11 +56,9 @@ export function EmployeesPage() {
         setEmployees(items);
         setNotice(`已接入 ${items.length} 条员工档案`);
       } catch {
-        if (!isActive) {
-          return;
+        if (isActive) {
+          setNotice("员工档案加载失败，请稍后重试");
         }
-
-        setNotice("员工档案装载失败，请稍后重试");
       } finally {
         if (isActive) {
           setIsLoading(false);
@@ -57,11 +71,16 @@ export function EmployeesPage() {
     };
   }, []);
 
-  async function handleCreateEmployee(draft: EmployeeDraft) {
+  const activeCount = useMemo(
+    () => employees.filter((employee) => employee.status !== "disabled").length,
+    [employees],
+  );
+
+  async function handleCreateEmployee(input: EmployeeUpsertInput) {
     setIsSubmitting(true);
 
     try {
-      const createdEmployee = await createEmployee(draft);
+      const createdEmployee = await createEmployee(input);
       setEmployees((current) => [createdEmployee, ...current]);
       setNotice(`已新增员工 ${createdEmployee.name}`);
     } catch {
@@ -71,11 +90,11 @@ export function EmployeesPage() {
     }
   }
 
-  async function handleUpdateEmployee(employeeId: string, draft: EmployeeDraft) {
+  async function handleUpdateEmployee(employeeId: string, input: EmployeeUpsertInput) {
     setPendingEmployeeId(employeeId);
 
     try {
-      const updatedEmployee = await updateEmployee(employeeId, draft);
+      const updatedEmployee = await updateEmployee(employeeId, input);
       setEmployees((current) =>
         current.map((employee) =>
           employee.id === updatedEmployee.id ? updatedEmployee : employee,
@@ -111,30 +130,23 @@ export function EmployeesPage() {
     }
   }
 
-  const activeCount = employees.filter((employee) => employee.status !== "Disabled").length;
-
   return (
     <section className="page">
       <header className="page-header">
         <span className="page-header__eyebrow">Workforce</span>
         <div>
           <h2>Employees</h2>
-          <p>
-            Placeholder roster view for headcount, certifications, and team
-            state changes.
-          </p>
+          <p>真实员工档案管理，支持新增、编辑、停用和设备信息维护。</p>
         </div>
       </header>
 
       <div className="page-grid page-grid--split">
         <article className="panel">
           <div className="panel__header">
-            <h3>Roster Intake</h3>
-            <span>Mock create</span>
+            <h3>员工录入</h3>
+            <span>{isLoading ? "加载中..." : `${activeCount} active badges`}</span>
           </div>
-          <p className="panel__copy">
-            {notice}
-          </p>
+          <p className="panel__copy">{notice}</p>
           <div style={{ marginTop: "1rem" }}>
             <EmployeeForm
               resetOnSubmit
@@ -146,26 +158,29 @@ export function EmployeesPage() {
 
         <article className="panel panel--tall">
           <div className="panel__header">
-            <h3>Roster Snapshot</h3>
-            <span>{isLoading ? "Loading..." : `${activeCount} active badges`}</span>
+            <h3>员工列表</h3>
+            <span>{employees.length} records</span>
           </div>
           <div className="employee-grid">
             {employees.map((employee) => (
               <article key={employee.id} className="employee-card">
                 <strong>{employee.name}</strong>
-                <span>{employee.team}</span>
-                <span>{employee.badge}</span>
-                <p>{employee.status}</p>
+                <span>
+                  {employee.employeeNo} / {employee.systemNo}
+                </span>
+                <span>{employee.status}</span>
+                <p>{`${employee.devices.length} 台设备`}</p>
+                <p>
+                  {employee.devices
+                    .map((device) => `${device.deviceLabel || device.macAddress}`)
+                    .join(" / ")}
+                </p>
                 {editingEmployeeId === employee.id ? (
                   <EmployeeForm
-                    initialValues={{
-                      name: employee.name,
-                      team: employee.team,
-                      badge: employee.badge,
-                    }}
+                    initialValues={toFormValues(employee)}
                     isSubmitting={pendingEmployeeId === employee.id}
                     onCancel={() => setEditingEmployeeId(null)}
-                    onSubmit={(draft) => handleUpdateEmployee(employee.id, draft)}
+                    onSubmit={(input) => handleUpdateEmployee(employee.id, input)}
                     submitLabel="保存变更"
                   />
                 ) : (
@@ -174,7 +189,7 @@ export function EmployeesPage() {
                       type="button"
                       onClick={() => setEditingEmployeeId(employee.id)}
                       disabled={
-                        pendingEmployeeId === employee.id || employee.status === "Disabled"
+                        pendingEmployeeId === employee.id || employee.status === "disabled"
                       }
                       style={actionButtonStyle}
                     >
@@ -184,7 +199,7 @@ export function EmployeesPage() {
                       type="button"
                       onClick={() => void handleDisableEmployee(employee.id)}
                       disabled={
-                        pendingEmployeeId === employee.id || employee.status === "Disabled"
+                        pendingEmployeeId === employee.id || employee.status === "disabled"
                       }
                       style={{
                         ...actionButtonStyle,
@@ -192,7 +207,7 @@ export function EmployeesPage() {
                         background: "rgba(11, 22, 18, 0.92)",
                       }}
                     >
-                      {employee.status === "Disabled" ? "已停用" : "停用"}
+                      {employee.status === "disabled" ? "已停用" : "停用"}
                     </button>
                   </div>
                 )}

@@ -1,12 +1,36 @@
 import "@testing-library/jest-dom/vitest";
 import { render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { appRoutes } from "../app/router";
+import { mockJsonFetch } from "./fetchMock";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe("console router", () => {
-  it("renders all five navigation items on the dashboard route", () => {
+  it("renders all five navigation items on the dashboard route", async () => {
+    mockJsonFetch([
+      {
+        method: "GET",
+        path: "/api/employees",
+        response: { items: [] },
+      },
+      {
+        method: "GET",
+        path: "/api/attendance",
+        response: { items: [] },
+      },
+      {
+        method: "GET",
+        path: "/api/logs",
+        response: { items: [] },
+      },
+    ]);
+
     const router = createMemoryRouter(appRoutes, {
       initialEntries: ["/"],
     });
@@ -28,17 +52,25 @@ describe("console router", () => {
     expect(
       screen.getByRole("link", { name: /settings runtime controls and audit locks/i }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
   });
 
-  it("renders the logs page on a non-default route", () => {
+  it("renders the logs page on a non-default route", async () => {
+    mockJsonFetch([
+      {
+        method: "GET",
+        path: "/api/logs",
+        response: { items: [] },
+      },
+    ]);
+
     const router = createMemoryRouter(appRoutes, {
       initialEntries: ["/logs"],
     });
 
     render(<RouterProvider router={router} />);
 
-    expect(screen.getByRole("heading", { name: "Logs" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Logs" })).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /logs ingestion stream and exception tail/i }),
     ).toHaveAttribute("aria-current", "page");

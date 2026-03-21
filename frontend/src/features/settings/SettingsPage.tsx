@@ -3,19 +3,48 @@ import { useEffect, useState } from "react";
 import {
   getSettings,
   saveSettings,
-  type SettingsRecord,
+  type SystemSetting,
 } from "../../lib/api";
-import { SettingsForm } from "./components/SettingsForm";
+import { SettingsForm, type SettingsFormValues } from "./components/SettingsForm";
+
+const DEFAULT_VALUES: SettingsFormValues = {
+  dayEndTime: "18:30",
+  retentionDays: "45",
+  reportTargetUrl: "",
+  reportTimeoutSeconds: "30",
+  reportRetryLimit: "5",
+};
+
+function toValues(items: SystemSetting[]): SettingsFormValues {
+  const settingsMap = new Map(items.map((item) => [item.settingKey, item.settingValue]));
+
+  return {
+    dayEndTime: settingsMap.get("day_end_time") ?? DEFAULT_VALUES.dayEndTime,
+    retentionDays:
+      settingsMap.get("syslog_retention_days") ?? DEFAULT_VALUES.retentionDays,
+    reportTargetUrl:
+      settingsMap.get("report_target_url") ?? DEFAULT_VALUES.reportTargetUrl,
+    reportTimeoutSeconds:
+      settingsMap.get("report_timeout_seconds") ?? DEFAULT_VALUES.reportTimeoutSeconds,
+    reportRetryLimit:
+      settingsMap.get("report_retry_limit") ?? DEFAULT_VALUES.reportRetryLimit,
+  };
+}
+
+function toItems(values: SettingsFormValues): SystemSetting[] {
+  return [
+    { settingKey: "day_end_time", settingValue: values.dayEndTime },
+    { settingKey: "syslog_retention_days", settingValue: values.retentionDays },
+    { settingKey: "report_target_url", settingValue: values.reportTargetUrl },
+    { settingKey: "report_timeout_seconds", settingValue: values.reportTimeoutSeconds },
+    { settingKey: "report_retry_limit", settingValue: values.reportRetryLimit },
+  ];
+}
 
 export function SettingsPage() {
-  const [settings, setSettings] = useState<SettingsRecord>({
-    scannerRetryThreshold: 1,
-    lateToleranceMinutes: 0,
-    archiveRetentionDays: 1,
-    manualCorrectionRequiresApproval: false,
-  });
+  const [settings, setSettings] = useState<SettingsFormValues>(DEFAULT_VALUES);
   const [isSaving, setIsSaving] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("等待配置装载...");
+  const [statusMessage, setStatusMessage] = useState("加载系统设置...");
 
   useEffect(() => {
     let isActive = true;
@@ -28,7 +57,7 @@ export function SettingsPage() {
           return;
         }
 
-        setSettings(loadedSettings);
+        setSettings(toValues(loadedSettings));
         setStatusMessage("已装载当前运行参数");
       } catch {
         if (isActive) {
@@ -42,13 +71,13 @@ export function SettingsPage() {
     };
   }, []);
 
-  async function handleSave(nextSettings: SettingsRecord) {
+  async function handleSave(nextSettings: SettingsFormValues) {
     setIsSaving(true);
 
     try {
-      const savedSettings = await saveSettings(nextSettings);
-      setSettings(savedSettings);
-      setStatusMessage("设置已保存到本地 mock 控制面");
+      const savedSettings = await saveSettings(toItems(nextSettings));
+      setSettings(toValues(savedSettings));
+      setStatusMessage("设置已保存到后端");
     } catch {
       setStatusMessage("设置保存失败，请稍后重试");
     } finally {
@@ -62,18 +91,15 @@ export function SettingsPage() {
         <span className="page-header__eyebrow">Configuration</span>
         <div>
           <h2>Settings</h2>
-          <p>
-            Placeholder admin space for runtime controls, policy toggles, and
-            audit-aware changes.
-          </p>
+          <p>真实系统配置管理，覆盖日切、保留和报告投递参数。</p>
         </div>
       </header>
 
       <div className="page-grid page-grid--split">
         <article className="panel">
           <div className="panel__header">
-            <h3>Control Modules</h3>
-            <span>Mock save</span>
+            <h3>系统参数</h3>
+            <span>{isSaving ? "保存中..." : "后端同步"}</span>
           </div>
           <p className="panel__copy">{statusMessage}</p>
           <div style={{ marginTop: "1rem" }}>
@@ -87,17 +113,17 @@ export function SettingsPage() {
 
         <article className="panel panel--tall">
           <div className="panel__header">
-            <h3>Audit Locks</h3>
-            <span>Immutable trail</span>
+            <h3>配置说明</h3>
+            <span>当前 keys</span>
           </div>
           <p className="panel__copy">
-            人工修正审批、扫描重试和归档保留策略都先写入本地 mock
-            层，后续替换成真实接口时只需要收敛到 API 抽象。
+            `day_end_time`、`syslog_retention_days`、`report_target_url`、
+            `report_timeout_seconds` 和 `report_retry_limit` 已对齐真实后端字段。
           </p>
           <ul className="stack-list">
-            <li>Scanner retry thresholds</li>
-            <li>Supervisor approval policy</li>
-            <li>Archive retention windows</li>
+            <li>日切时间用于跨日归档和报表分段</li>
+            <li>保留天数控制日志与报表清理窗口</li>
+            <li>报告配置控制告警投递链路</li>
           </ul>
         </article>
       </div>

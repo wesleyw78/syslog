@@ -1,15 +1,17 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 
-import type { EmployeeDraft } from "../../../lib/api";
+import type { EmployeeUpsertInput } from "../../../lib/api";
 
 type EmployeeFormProps = {
-  initialValues?: EmployeeDraft;
+  initialValues?: EmployeeUpsertInput;
   isSubmitting: boolean;
   onCancel?: () => void;
   resetOnSubmit?: boolean;
   submitLabel?: string;
-  onSubmit: (draft: EmployeeDraft) => Promise<void>;
+  onSubmit: (input: EmployeeUpsertInput) => Promise<void>;
 };
+
+type DeviceDraft = EmployeeUpsertInput["devices"][number];
 
 const fieldStyle = {
   display: "grid",
@@ -34,6 +36,38 @@ const buttonStyle = {
   letterSpacing: "0.08em",
 };
 
+function createEmptyDevice(): DeviceDraft {
+  return {
+    macAddress: "",
+    deviceLabel: "",
+    status: "active",
+  };
+}
+
+function createEmptyDraft(): EmployeeUpsertInput {
+  return {
+    employeeNo: "",
+    systemNo: "",
+    name: "",
+    status: "active",
+    devices: [createEmptyDevice()],
+  };
+}
+
+function toDraft(initialValues?: EmployeeUpsertInput): EmployeeUpsertInput {
+  if (!initialValues) {
+    return createEmptyDraft();
+  }
+
+  return {
+    employeeNo: initialValues.employeeNo,
+    systemNo: initialValues.systemNo,
+    name: initialValues.name,
+    status: initialValues.status,
+    devices: initialValues.devices.length > 0 ? initialValues.devices : [createEmptyDevice()],
+  };
+}
+
 export function EmployeeForm({
   initialValues,
   isSubmitting,
@@ -43,34 +77,61 @@ export function EmployeeForm({
   submitLabel = "新增员工",
 }: EmployeeFormProps) {
   const [errorMessage, setErrorMessage] = useState("");
-  const emptyDraft = {
-    name: "",
-    team: "",
-    badge: "",
-  };
-  const [draft, setDraft] = useState<EmployeeDraft>({
-    ...emptyDraft,
-    ...initialValues,
-  });
+  const defaultDraft = useMemo(() => createEmptyDraft(), []);
+  const [draft, setDraft] = useState<EmployeeUpsertInput>(toDraft(initialValues));
 
   useEffect(() => {
     setErrorMessage("");
-    setDraft({
-      ...emptyDraft,
-      ...initialValues,
-    });
+    setDraft(toDraft(initialValues));
   }, [initialValues]);
+
+  function updateDevice(index: number, patch: Partial<DeviceDraft>) {
+    setDraft((current) => ({
+      ...current,
+      devices: current.devices.map((device, deviceIndex) =>
+        deviceIndex === index ? { ...device, ...patch } : device,
+      ),
+    }));
+  }
+
+  function addDevice() {
+    setDraft((current) => ({
+      ...current,
+      devices: [...current.devices, createEmptyDevice()],
+    }));
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextDraft = {
+
+    const nextDraft: EmployeeUpsertInput = {
+      employeeNo: draft.employeeNo.trim(),
+      systemNo: draft.systemNo.trim(),
       name: draft.name.trim(),
-      team: draft.team.trim(),
-      badge: draft.badge.trim(),
+      status: draft.status.trim() || "active",
+      devices: draft.devices.map((device) => ({
+        macAddress: device.macAddress.trim().toUpperCase(),
+        deviceLabel: device.deviceLabel.trim(),
+        status: device.status.trim() || "active",
+      })),
     };
 
-    if (!nextDraft.name || !nextDraft.team || !nextDraft.badge) {
-      setErrorMessage("员工字段不能只包含空白字符");
+    if (!nextDraft.employeeNo || !nextDraft.systemNo || !nextDraft.name) {
+      setErrorMessage("员工编号、系统编号和姓名不能为空");
+      return;
+    }
+
+    if (nextDraft.devices.length === 0) {
+      setErrorMessage("请至少添加一个设备");
+      return;
+    }
+
+    const hasEmptyDevice = nextDraft.devices.some(
+      (device) => !device.macAddress || !device.deviceLabel,
+    );
+
+    if (hasEmptyDevice) {
+      setErrorMessage("设备信息不能为空");
       return;
     }
 
@@ -78,7 +139,7 @@ export function EmployeeForm({
     await onSubmit(nextDraft);
 
     if (resetOnSubmit) {
-      setDraft(emptyDraft);
+      setDraft(defaultDraft);
     }
   }
 
@@ -89,7 +150,35 @@ export function EmployeeForm({
       style={{ display: "grid", gap: "0.9rem" }}
     >
       <label style={fieldStyle}>
-        <span>员工姓名</span>
+        <span>员工编号</span>
+        <input
+          required
+          type="text"
+          value={draft.employeeNo}
+          onChange={(event) =>
+            setDraft((current) => ({ ...current, employeeNo: event.target.value }))
+          }
+          onInput={() => setErrorMessage("")}
+          style={inputStyle}
+        />
+      </label>
+
+      <label style={fieldStyle}>
+        <span>系统编号</span>
+        <input
+          required
+          type="text"
+          value={draft.systemNo}
+          onChange={(event) =>
+            setDraft((current) => ({ ...current, systemNo: event.target.value }))
+          }
+          onInput={() => setErrorMessage("")}
+          style={inputStyle}
+        />
+      </label>
+
+      <label style={fieldStyle}>
+        <span>姓名</span>
         <input
           required
           type="text"
@@ -102,33 +191,63 @@ export function EmployeeForm({
         />
       </label>
 
-      <label style={fieldStyle}>
-        <span>班组</span>
-        <input
-          required
-          type="text"
-          value={draft.team}
-          onChange={(event) =>
-            setDraft((current) => ({ ...current, team: event.target.value }))
-          }
-          onInput={() => setErrorMessage("")}
-          style={inputStyle}
-        />
-      </label>
+      <div style={{ display: "grid", gap: "0.65rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem" }}>
+          <span>设备</span>
+          <button
+            type="button"
+            onClick={addDevice}
+            disabled={isSubmitting}
+            style={{
+              ...buttonStyle,
+              padding: "0.55rem 0.8rem",
+            }}
+          >
+            添加设备
+          </button>
+        </div>
 
-      <label style={fieldStyle}>
-        <span>工牌号</span>
-        <input
-          required
-          type="text"
-          value={draft.badge}
-          onChange={(event) =>
-            setDraft((current) => ({ ...current, badge: event.target.value }))
-          }
-          onInput={() => setErrorMessage("")}
-          style={inputStyle}
-        />
-      </label>
+        {draft.devices.map((device, index) => (
+          <div
+            key={index}
+            style={{
+              display: "grid",
+              gap: "0.65rem",
+              padding: "0.8rem",
+              border: "1px solid rgba(255, 184, 77, 0.12)",
+              background: "rgba(7, 9, 9, 0.56)",
+            }}
+          >
+            <label style={fieldStyle}>
+              <span>{`设备 ${index + 1} MAC`}</span>
+              <input
+                required
+                type="text"
+                value={device.macAddress}
+                onChange={(event) =>
+                  updateDevice(index, { macAddress: event.target.value })
+                }
+                onInput={() => setErrorMessage("")}
+                style={inputStyle}
+              />
+            </label>
+
+            <label style={fieldStyle}>
+              <span>{`设备 ${index + 1} 标签`}</span>
+              <input
+                required
+                type="text"
+                value={device.deviceLabel}
+                onChange={(event) =>
+                  updateDevice(index, { deviceLabel: event.target.value })
+                }
+                onInput={() => setErrorMessage("")}
+                style={inputStyle}
+              />
+            </label>
+          </div>
+        ))}
+      </div>
 
       {errorMessage ? (
         <p

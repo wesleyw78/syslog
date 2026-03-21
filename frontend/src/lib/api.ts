@@ -1,217 +1,250 @@
-export type Employee = {
-  id: string;
-  name: string;
-  team: string;
-  badge: string;
+const API_BASE_URL = "/api";
+
+export type EmployeeDevice = {
+  macAddress: string;
+  deviceLabel: string;
   status: string;
 };
 
-export type EmployeeDraft = {
+export type Employee = {
+  id: string;
+  employeeNo: string;
+  systemNo: string;
   name: string;
-  team: string;
-  badge: string;
+  status: string;
+  devices: EmployeeDevice[];
+  createdAt: string;
+  updatedAt: string;
 };
 
-export type AttendanceStatus = "normal" | "exception" | "corrected";
+export type EmployeeUpsertInput = {
+  employeeNo: string;
+  systemNo: string;
+  name: string;
+  status: string;
+  devices: EmployeeDevice[];
+};
 
 export type AttendanceRecord = {
   id: string;
-  employeeName: string;
-  badge: string;
-  checkpoint: string;
-  shift: string;
-  timestamp: string;
-  status: AttendanceStatus;
-  note: string;
+  employeeId: string;
+  attendanceDate: string;
+  firstConnectAt?: string | null;
+  lastDisconnectAt?: string | null;
+  clockInStatus: string;
+  clockOutStatus: string;
+  exceptionStatus: string;
+  sourceMode: string;
+  version: number;
+  lastCalculatedAt?: string | null;
 };
 
-export type SettingsRecord = {
-  scannerRetryThreshold: number;
-  lateToleranceMinutes: number;
-  archiveRetentionDays: number;
-  manualCorrectionRequiresApproval: boolean;
+export type AttendanceCorrectionInput = {
+  firstConnectAt?: string | null;
+  lastDisconnectAt?: string | null;
 };
 
-const wait = <T,>(value: T, delay = 120): Promise<T> =>
-  new Promise((resolve) => {
-    globalThis.setTimeout(() => resolve(value), delay);
+export type SystemSetting = {
+  settingKey: string;
+  settingValue: string;
+};
+
+export type LogsMessage = {
+  id?: string;
+  receivedAt?: string;
+  logTime?: string | null;
+  parseStatus?: string;
+  rawMessage?: string;
+  sourceIp?: string;
+  protocol?: string;
+};
+
+export type ClientEvent = {
+  id?: string;
+  eventTime?: string;
+  eventType?: string;
+  stationMac?: string;
+  hostname?: string;
+  matchStatus?: string;
+};
+
+export type LogItem = {
+  message: LogsMessage;
+  event?: ClientEvent;
+};
+
+export type ListResponse<T> = {
+  items: T[];
+};
+
+function buildUrl(path: string): string {
+  return `${API_BASE_URL}${path}`;
+}
+
+function isJsonContent(response: Response): boolean {
+  const contentType = response.headers.get("content-type") ?? "";
+  return contentType.includes("application/json");
+}
+
+export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(buildUrl(path), {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init.headers ?? {}),
+    },
   });
 
-const initialEmployees: Employee[] = [
-  {
-    id: "emp-1",
-    name: "Lena Wu",
-    team: "Assembly",
-    badge: "A-447",
-    status: "On shift",
-  },
-  {
-    id: "emp-2",
-    name: "Arjun Patel",
-    team: "Security",
-    badge: "S-118",
-    status: "Briefing",
-  },
-  {
-    id: "emp-3",
-    name: "Mina Torres",
-    team: "Maintenance",
-    badge: "M-233",
-    status: "Standby",
-  },
-];
+  if (!response.ok) {
+    const message = await response.text().catch(() => "");
+    throw new Error(message || `Request failed with status ${response.status}`);
+  }
 
-const initialAttendanceRecords: AttendanceRecord[] = [
-  {
-    id: "att-1",
-    employeeName: "Lena Wu",
-    badge: "A-447",
-    checkpoint: "North Gate",
-    shift: "06:00-14:00",
-    timestamp: "06:02",
-    status: "normal",
-    note: "Auto-reconciled from badge scanner",
-  },
-  {
-    id: "att-2",
-    employeeName: "Arjun Patel",
-    badge: "S-118",
-    checkpoint: "Security Post",
-    shift: "06:00-14:00",
-    timestamp: "06:14",
-    status: "exception",
-    note: "Late punch outside supervisor tolerance",
-  },
-  {
-    id: "att-3",
-    employeeName: "Mina Torres",
-    badge: "M-233",
-    checkpoint: "Packing Line",
-    shift: "14:00-22:00",
-    timestamp: "13:58",
-    status: "corrected",
-    note: "Manual badge swap already approved",
-  },
-];
+  if (response.status === 204) {
+    return undefined as T;
+  }
 
-const initialSettingsRecord: SettingsRecord = {
-  scannerRetryThreshold: 3,
-  lateToleranceMinutes: 10,
-  archiveRetentionDays: 45,
-  manualCorrectionRequiresApproval: true,
-};
+  if (isJsonContent(response)) {
+    return (await response.json()) as T;
+  }
 
-let employeeSeed = 4;
-
-let employees: Employee[] = initialEmployees.map((employee) => ({ ...employee }));
-
-let attendanceRecords: AttendanceRecord[] = initialAttendanceRecords.map((record) => ({
-  ...record,
-}));
-
-let settingsRecord: SettingsRecord = { ...initialSettingsRecord };
-
-export function resetMockData(): void {
-  employeeSeed = 4;
-  employees = initialEmployees.map((employee) => ({ ...employee }));
-  attendanceRecords = initialAttendanceRecords.map((record) => ({ ...record }));
-  settingsRecord = { ...initialSettingsRecord };
+  return (await response.text()) as T;
 }
 
-export async function listEmployees(): Promise<Employee[]> {
-  return wait(employees.map((employee) => ({ ...employee })));
+export function parseListResponse<T>(response: ListResponse<T> | undefined | null): T[] {
+  return Array.isArray(response?.items) ? response.items : [];
 }
 
-export async function createEmployee(draft: EmployeeDraft): Promise<Employee> {
-  const employee: Employee = {
-    id: `emp-${employeeSeed++}`,
-    name: draft.name.trim(),
-    team: draft.team.trim(),
-    badge: draft.badge.trim().toUpperCase(),
-    status: "Provisioning",
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function optionalStringValue(value: unknown): string | null | undefined {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value === null) {
+    return null;
+  }
+  return undefined;
+}
+
+function normalizeSystemSetting(value: unknown): SystemSetting {
+  const raw = (value ?? {}) as Record<string, unknown>;
+
+  return {
+    settingKey: stringValue(raw.settingKey ?? raw.SettingKey),
+    settingValue: stringValue(raw.settingValue ?? raw.SettingValue),
   };
+}
 
-  employees = [employee, ...employees];
+function normalizeLogMessage(value: unknown): LogsMessage {
+  const raw = (value ?? {}) as Record<string, unknown>;
 
-  return wait({ ...employee });
+  return {
+    id: optionalStringValue(raw.id ?? raw.ID) ?? undefined,
+    receivedAt: optionalStringValue(raw.receivedAt ?? raw.ReceivedAt) ?? undefined,
+    logTime: optionalStringValue(raw.logTime ?? raw.LogTime),
+    parseStatus: stringValue(raw.parseStatus ?? raw.ParseStatus),
+    rawMessage: stringValue(raw.rawMessage ?? raw.RawMessage),
+    sourceIp: stringValue(raw.sourceIp ?? raw.SourceIP),
+    protocol: stringValue(raw.protocol ?? raw.Protocol),
+  };
+}
+
+function normalizeClientEvent(value: unknown): ClientEvent | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const raw = value as Record<string, unknown>;
+
+  return {
+    id: optionalStringValue(raw.id ?? raw.ID) ?? undefined,
+    eventTime: optionalStringValue(raw.eventTime ?? raw.EventTime) ?? undefined,
+    eventType: stringValue(raw.eventType ?? raw.EventType),
+    stationMac: stringValue(raw.stationMac ?? raw.StationMac),
+    hostname: stringValue(raw.hostname ?? raw.Hostname),
+    matchStatus: stringValue(raw.matchStatus ?? raw.MatchStatus),
+  };
+}
+
+function normalizeLogItem(value: unknown): LogItem {
+  const raw = (value ?? {}) as Record<string, unknown>;
+
+  return {
+    message: normalizeLogMessage(raw.message),
+    event: normalizeClientEvent(raw.event),
+  };
+}
+
+export async function getEmployees(): Promise<Employee[]> {
+  const response = await apiFetch<ListResponse<Employee>>("/employees");
+  return parseListResponse(response);
+}
+
+export async function createEmployee(input: EmployeeUpsertInput): Promise<Employee> {
+  const response = await apiFetch<{ employee: Employee }>("/employees", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+
+  return response.employee;
 }
 
 export async function updateEmployee(
   employeeId: string,
-  draft: EmployeeDraft,
+  input: EmployeeUpsertInput,
 ): Promise<Employee> {
-  const currentEmployee = employees.find((employee) => employee.id === employeeId);
+  const response = await apiFetch<{ employee: Employee }>(`/employees/${employeeId}`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
 
-  if (!currentEmployee) {
-    throw new Error("Employee not found");
-  }
-
-  const updatedEmployee: Employee = {
-    ...currentEmployee,
-    name: draft.name.trim(),
-    team: draft.team.trim(),
-    badge: draft.badge.trim().toUpperCase(),
-  };
-
-  employees = employees.map((employee) =>
-    employee.id === employeeId ? updatedEmployee : employee,
-  );
-
-  return wait({ ...updatedEmployee });
+  return response.employee;
 }
 
 export async function disableEmployee(employeeId: string): Promise<Employee> {
-  const currentEmployee = employees.find((employee) => employee.id === employeeId);
+  const response = await apiFetch<{ employee: Employee }>(`/employees/${employeeId}/disable`, {
+    method: "POST",
+  });
 
-  if (!currentEmployee) {
-    throw new Error("Employee not found");
-  }
-
-  const disabledEmployee: Employee = {
-    ...currentEmployee,
-    status: "Disabled",
-  };
-
-  employees = employees.map((employee) =>
-    employee.id === employeeId ? disabledEmployee : employee,
-  );
-
-  return wait({ ...disabledEmployee });
+  return response.employee;
 }
 
-export async function listAttendanceRecords(): Promise<AttendanceRecord[]> {
-  return wait(attendanceRecords.map((record) => ({ ...record })));
+export async function getAttendanceRecords(): Promise<AttendanceRecord[]> {
+  const response = await apiFetch<ListResponse<AttendanceRecord>>("/attendance");
+  return parseListResponse(response);
 }
 
 export async function correctAttendanceRecord(
   recordId: string,
-): Promise<AttendanceRecord> {
-  const currentRecord = attendanceRecords.find((record) => record.id === recordId);
-
-  if (!currentRecord) {
-    throw new Error("Attendance record not found");
-  }
-
-  const correctedRecord: AttendanceRecord = {
-    ...currentRecord,
-    status: "corrected",
-    note: "Manual correction queued for supervisor audit",
-  };
-
-  attendanceRecords = attendanceRecords.map((record) =>
-    record.id === recordId ? correctedRecord : record,
+  input: AttendanceCorrectionInput,
+): Promise<{ attendance: AttendanceRecord; reports: unknown[] }> {
+  return apiFetch<{ attendance: AttendanceRecord; reports: unknown[] }>(
+    `/attendance/${recordId}/correction`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
   );
-
-  return wait({ ...correctedRecord });
 }
 
-export async function getSettings(): Promise<SettingsRecord> {
-  return wait({ ...settingsRecord });
+export async function getSettings(): Promise<SystemSetting[]> {
+  const response = await apiFetch<ListResponse<unknown>>("/settings");
+  return parseListResponse(response).map(normalizeSystemSetting);
 }
 
-export async function saveSettings(
-  nextSettings: SettingsRecord,
-): Promise<SettingsRecord> {
-  settingsRecord = { ...nextSettings };
-  return wait({ ...settingsRecord });
+export async function saveSettings(items: SystemSetting[]): Promise<SystemSetting[]> {
+  const response = await apiFetch<ListResponse<unknown>>("/settings", {
+    method: "PUT",
+    body: JSON.stringify({ items }),
+  });
+
+  return parseListResponse(response).map(normalizeSystemSetting);
+}
+
+export async function getLogs(): Promise<LogItem[]> {
+  const response = await apiFetch<ListResponse<unknown>>("/logs");
+  return parseListResponse(response).map(normalizeLogItem);
 }

@@ -1,11 +1,17 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 
-import type { SettingsRecord } from "../../../lib/api";
+type SettingsFormValues = {
+  dayEndTime: string;
+  reportRetryLimit: string;
+  reportTargetUrl: string;
+  reportTimeoutSeconds: string;
+  retentionDays: string;
+};
 
 type SettingsFormProps = {
-  initialValues: SettingsRecord;
+  initialValues: SettingsFormValues;
   isSaving: boolean;
-  onSubmit: (values: SettingsRecord) => Promise<void>;
+  onSubmit: (values: SettingsFormValues) => Promise<void>;
 };
 
 const fieldStyle = {
@@ -31,28 +37,35 @@ const buttonStyle = {
   letterSpacing: "0.08em",
 };
 
+function isInteger(value: string, minimum: number): boolean {
+  return /^\d+$/.test(value) && Number(value) >= minimum;
+}
+
 export function SettingsForm({
   initialValues,
   isSaving,
   onSubmit,
 }: SettingsFormProps) {
   const [errorMessage, setErrorMessage] = useState("");
-  const [values, setValues] = useState(initialValues);
-
-  useEffect(() => {
-    setErrorMessage("");
-    setValues(initialValues);
-  }, [initialValues]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+    const values: SettingsFormValues = {
+      dayEndTime: String(formData.get("dayEndTime") ?? ""),
+      retentionDays: String(formData.get("retentionDays") ?? ""),
+      reportTargetUrl: String(formData.get("reportTargetUrl") ?? ""),
+      reportTimeoutSeconds: String(formData.get("reportTimeoutSeconds") ?? ""),
+      reportRetryLimit: String(formData.get("reportRetryLimit") ?? ""),
+    };
+
     const isInvalid =
-      !Number.isInteger(values.scannerRetryThreshold) ||
-      values.scannerRetryThreshold < 1 ||
-      !Number.isInteger(values.lateToleranceMinutes) ||
-      values.lateToleranceMinutes < 0 ||
-      !Number.isInteger(values.archiveRetentionDays) ||
-      values.archiveRetentionDays < 1;
+      !/^\d{2}:\d{2}$/.test(values.dayEndTime) ||
+      !values.reportTargetUrl.trim() ||
+      !isInteger(values.retentionDays, 1) ||
+      !isInteger(values.reportTimeoutSeconds, 1) ||
+      !isInteger(values.reportRetryLimit, 0);
 
     if (isInvalid) {
       setErrorMessage("设置数值不合法");
@@ -65,83 +78,68 @@ export function SettingsForm({
 
   return (
     <form
+      key={JSON.stringify(initialValues)}
       noValidate
       onSubmit={handleSubmit}
       style={{ display: "grid", gap: "0.9rem" }}
     >
       <label style={fieldStyle}>
-        <span>扫描重试阈值</span>
+        <span>日切时间</span>
         <input
+          name="dayEndTime"
+          type="time"
+          defaultValue={initialValues.dayEndTime}
+          onInput={() => setErrorMessage("")}
+          style={inputStyle}
+          step={60}
+        />
+      </label>
+
+      <label style={fieldStyle}>
+        <span>日志保留天数</span>
+        <input
+          name="retentionDays"
           min={1}
           type="number"
-          value={values.scannerRetryThreshold}
-          onChange={(event) =>
-            setValues((current) => ({
-              ...current,
-              scannerRetryThreshold: Number(event.target.value),
-            }))
-          }
+          defaultValue={initialValues.retentionDays}
           onInput={() => setErrorMessage("")}
           style={inputStyle}
         />
       </label>
 
       <label style={fieldStyle}>
-        <span>迟到容忍分钟</span>
+        <span>报告目标地址</span>
         <input
+          name="reportTargetUrl"
+          type="text"
+          defaultValue={initialValues.reportTargetUrl}
+          onInput={() => setErrorMessage("")}
+          style={inputStyle}
+        />
+      </label>
+
+      <label style={fieldStyle}>
+        <span>报告超时秒数</span>
+        <input
+          name="reportTimeoutSeconds"
+          min={1}
+          type="number"
+          defaultValue={initialValues.reportTimeoutSeconds}
+          onInput={() => setErrorMessage("")}
+          style={inputStyle}
+        />
+      </label>
+
+      <label style={fieldStyle}>
+        <span>重试次数</span>
+        <input
+          name="reportRetryLimit"
           min={0}
           type="number"
-          value={values.lateToleranceMinutes}
-          onChange={(event) =>
-            setValues((current) => ({
-              ...current,
-              lateToleranceMinutes: Number(event.target.value),
-            }))
-          }
+          defaultValue={initialValues.reportRetryLimit}
           onInput={() => setErrorMessage("")}
           style={inputStyle}
         />
-      </label>
-
-      <label style={fieldStyle}>
-        <span>归档保留天数</span>
-        <input
-          min={1}
-          type="number"
-          value={values.archiveRetentionDays}
-          onChange={(event) =>
-            setValues((current) => ({
-              ...current,
-              archiveRetentionDays: Number(event.target.value),
-            }))
-          }
-          onInput={() => setErrorMessage("")}
-          style={inputStyle}
-        />
-      </label>
-
-      <label
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "0.65rem",
-          padding: "0.75rem 0.85rem",
-          border: "1px solid rgba(255, 184, 77, 0.12)",
-          background: "rgba(7, 9, 9, 0.56)",
-        }}
-      >
-        <input
-          checked={values.manualCorrectionRequiresApproval}
-          type="checkbox"
-          onChange={(event) =>
-            setValues((current) => ({
-              ...current,
-              manualCorrectionRequiresApproval: event.target.checked,
-            }))
-          }
-          onInput={() => setErrorMessage("")}
-        />
-        <span>人工修正需要主管审批</span>
       </label>
 
       {errorMessage ? (
@@ -159,3 +157,5 @@ export function SettingsForm({
     </form>
   );
 }
+
+export type { SettingsFormValues };
