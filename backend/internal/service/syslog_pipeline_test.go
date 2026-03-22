@@ -172,6 +172,18 @@ func (f *fakePipelineReportRepo) ListByAttendanceRecordID(context.Context, uint6
 	return nil, nil
 }
 
+func (f *fakePipelineReportRepo) FindLatestSuccessfulByAttendanceRecordAndType(context.Context, uint64, string) (*domain.AttendanceReport, error) {
+	return nil, sql.ErrNoRows
+}
+
+func (f *fakePipelineReportRepo) ListDispatchable(context.Context, int, uint32) ([]domain.AttendanceReport, error) {
+	return nil, nil
+}
+
+func (f *fakePipelineReportRepo) ListNotificationDispatchable(context.Context, int, uint32) ([]domain.AttendanceReport, error) {
+	return nil, nil
+}
+
 type fakePipelineSettingRepo struct {
 	settings map[string]string
 	keys     []string
@@ -195,6 +207,52 @@ func (f *fakePipelineSettingRepo) Save(context.Context, *domain.SystemSetting) e
 
 func (f *fakePipelineSettingRepo) WithTx(*sql.Tx) repository.SystemSettingRepository {
 	return f
+}
+
+type fakePipelineSyslogRuleRepo struct {
+	rules []domain.SyslogReceiveRule
+}
+
+func (f *fakePipelineSyslogRuleRepo) List(context.Context) ([]domain.SyslogReceiveRule, error) {
+	return append([]domain.SyslogReceiveRule(nil), f.rules...), nil
+}
+
+func (f *fakePipelineSyslogRuleRepo) ListEnabled(context.Context) ([]domain.SyslogReceiveRule, error) {
+	enabled := make([]domain.SyslogReceiveRule, 0, len(f.rules))
+	for _, rule := range f.rules {
+		if rule.Enabled {
+			enabled = append(enabled, rule)
+		}
+	}
+
+	return enabled, nil
+}
+
+func (f *fakePipelineSyslogRuleRepo) FindByID(_ context.Context, id uint64) (*domain.SyslogReceiveRule, error) {
+	for _, rule := range f.rules {
+		if rule.ID == id {
+			copied := rule
+			return &copied, nil
+		}
+	}
+
+	return nil, sql.ErrNoRows
+}
+
+func (f *fakePipelineSyslogRuleRepo) Create(context.Context, *domain.SyslogReceiveRule) error {
+	return nil
+}
+
+func (f *fakePipelineSyslogRuleRepo) Update(context.Context, *domain.SyslogReceiveRule) error {
+	return nil
+}
+
+func (f *fakePipelineSyslogRuleRepo) Delete(context.Context, uint64) error {
+	return nil
+}
+
+func (f *fakePipelineSyslogRuleRepo) Move(context.Context, uint64, string) error {
+	return nil
 }
 
 func TestSyslogPipelineHandleSuccessCreatesDownstreamRecords(t *testing.T) {
@@ -266,9 +324,6 @@ func TestSyslogPipelineHandleSuccessCreatesDownstreamRecords(t *testing.T) {
 	if reportRepo.saved[0].ReportStatus != "pending" {
 		t.Fatalf("expected pending report, got %q", reportRepo.saved[0].ReportStatus)
 	}
-	if reportRepo.saved[0].TargetURL != "http://example.test/report" {
-		t.Fatalf("expected report target url from settings, got %q", reportRepo.saved[0].TargetURL)
-	}
 	var payload map[string]any
 	if err := json.Unmarshal([]byte(reportRepo.saved[0].PayloadJSON), &payload); err != nil {
 		t.Fatalf("expected report payload json, got %v", err)
@@ -276,15 +331,12 @@ func TestSyslogPipelineHandleSuccessCreatesDownstreamRecords(t *testing.T) {
 	if payload["reportType"] != "clock_in" {
 		t.Fatalf("expected clock_in payload, got %#v", payload["reportType"])
 	}
-	if len(settingsRepo.keys) != 1 || settingsRepo.keys[0] != "report_target_url" {
-		t.Fatalf("expected report target url lookup, got %+v", settingsRepo.keys)
-	}
 	if len(reportRepo.findCalls) != 1 {
 		t.Fatalf("expected idempotency lookup before save, got %d calls", len(reportRepo.findCalls))
 	}
 }
 
-func TestSyslogPipelineHandleParseFailureOnlyPersistsRawMessage(t *testing.T) {
+func TestSyslogPipelineHandleParseFailureKeepsIgnoredRawMessage(t *testing.T) {
 	location := time.FixedZone("CST", 8*3600)
 	receivedAt := time.Date(2026, 3, 21, 8, 1, 0, 0, location)
 
@@ -311,14 +363,11 @@ func TestSyslogPipelineHandleParseFailureOnlyPersistsRawMessage(t *testing.T) {
 		t.Fatalf("expected parse failure to be swallowed, got %v", err)
 	}
 
-	if len(messageRepo.saved) != 1 {
-		t.Fatalf("expected only raw message to be persisted, got %d", len(messageRepo.saved))
-	}
-	if messageRepo.saved[0].ParseStatus != "failed" {
-		t.Fatalf("expected failed parse status, got %q", messageRepo.saved[0].ParseStatus)
+	if len(messageRepo.saved) != 1 || messageRepo.saved[0].ParseStatus != "ignored" {
+		t.Fatalf("expected parse failure to be retained as ignored raw message, got %+v", messageRepo.saved)
 	}
 	if len(eventRepo.saved) != 0 || len(attendanceRepo.saved) != 0 || len(reportRepo.saved) != 0 {
-		t.Fatalf("expected no downstream records on parse failure, got events=%d attendance=%d reports=%d", len(eventRepo.saved), len(attendanceRepo.saved), len(reportRepo.saved))
+		t.Fatalf("expected parse failure to skip downstream persistence, got events=%d attendance=%d reports=%d", len(eventRepo.saved), len(attendanceRepo.saved), len(reportRepo.saved))
 	}
 }
 
@@ -421,13 +470,13 @@ func TestSyslogPipelineHandleReportSaveFailureDoesNotLeaveHalfWrittenAttendance(
 		WithArgs(int64(42), attendanceDate).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_id", "attendance_date", "first_connect_at", "last_disconnect_at", "clock_in_status", "clock_out_status", "exception_status", "source_mode", "version", "last_calculated_at"}))
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, report_status, response_code, response_body, reported_at, retry_count
+		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, external_record_id, delete_record_id, report_status, response_code, response_body, notification_status, notification_message_id, notification_response_code, notification_response_body, notification_sent_at, notification_retry_count, reported_at, retry_count
 		FROM attendance_reports
 		WHERE idempotency_key = ?
 		LIMIT 1
 	`))).
 		WithArgs(sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "attendance_record_id", "report_type", "idempotency_key", "payload_json", "target_url", "report_status", "response_code", "response_body", "reported_at", "retry_count"}))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "attendance_record_id", "report_type", "idempotency_key", "payload_json", "target_url", "external_record_id", "delete_record_id", "report_status", "response_code", "response_body", "notification_status", "notification_message_id", "notification_response_code", "notification_response_body", "notification_sent_at", "notification_retry_count", "reported_at", "retry_count"}))
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		INSERT INTO attendance_records (
@@ -461,21 +510,37 @@ func TestSyslogPipelineHandleReportSaveFailureDoesNotLeaveHalfWrittenAttendance(
 			idempotency_key,
 			payload_json,
 			target_url,
+			external_record_id,
+			delete_record_id,
 			report_status,
 			response_code,
 			response_body,
+			notification_status,
+			notification_message_id,
+			notification_response_code,
+			notification_response_body,
+			notification_sent_at,
+			notification_retry_count,
 			reported_at,
 			retry_count
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
 			id = LAST_INSERT_ID(id),
 			attendance_record_id = VALUES(attendance_record_id),
 			report_type = VALUES(report_type),
 			payload_json = VALUES(payload_json),
 			target_url = VALUES(target_url),
+			external_record_id = VALUES(external_record_id),
+			delete_record_id = VALUES(delete_record_id),
 			report_status = VALUES(report_status),
 			response_code = VALUES(response_code),
 			response_body = VALUES(response_body),
+			notification_status = VALUES(notification_status),
+			notification_message_id = VALUES(notification_message_id),
+			notification_response_code = VALUES(notification_response_code),
+			notification_response_body = VALUES(notification_response_body),
+			notification_sent_at = VALUES(notification_sent_at),
+			notification_retry_count = VALUES(notification_retry_count),
 			reported_at = VALUES(reported_at),
 			retry_count = VALUES(retry_count)
 	`))).
@@ -504,6 +569,57 @@ func TestSyslogPipelineHandleReportSaveFailureDoesNotLeaveHalfWrittenAttendance(
 	}
 }
 
+func TestSyslogPipelineHandleKeepsUnmatchedSyslogInRawInbox(t *testing.T) {
+	location := time.FixedZone("CST", 8*3600)
+	receivedAt := time.Date(2026, 3, 22, 9, 15, 0, 0, location)
+
+	messageRepo := &fakePipelineSyslogMessageRepo{}
+	eventRepo := &fakePipelineClientEventRepo{}
+	employeeRepo := &fakePipelineEmployeeRepo{}
+	attendanceRepo := &fakePipelineAttendanceRepo{}
+	reportRepo := &fakePipelineReportRepo{}
+	settingsRepo := &fakePipelineSettingRepo{}
+	ruleRepo := &fakePipelineSyslogRuleRepo{
+		rules: []domain.SyslogReceiveRule{
+			{
+				ID:              1,
+				Name:            "connect only",
+				Enabled:         true,
+				EventType:       "connect",
+				MessagePattern:  `connect Station\[(?P<station_mac>[^\]]+)\]`,
+				StationMacGroup: "station_mac",
+			},
+		},
+	}
+
+	pipeline := NewSyslogPipeline(SyslogPipelineDeps{
+		Messages:       messageRepo,
+		Events:         eventRepo,
+		Employees:      employeeRepo,
+		Attendance:     attendanceRepo,
+		Reports:        reportRepo,
+		Settings:       settingsRepo,
+		Rules:          ruleRepo,
+		RetentionDays:  30,
+		AttendanceProc: NewAttendanceProcessor(),
+		ReportSvc:      NewReportService(),
+	})
+
+	if err := pipeline.Handle(context.Background(), []byte("noise syslog that should be dropped"), &net.UDPAddr{IP: net.ParseIP("10.0.0.9"), Port: 1514}, receivedAt); err != nil {
+		t.Fatalf("expected unmatched syslog to be ignored, got %v", err)
+	}
+
+	if len(messageRepo.saved) != 1 {
+		t.Fatalf("expected unmatched syslog to remain in raw inbox, got %d messages", len(messageRepo.saved))
+	}
+	if messageRepo.saved[0].ParseStatus != "ignored" {
+		t.Fatalf("expected unmatched syslog to be marked ignored, got %q", messageRepo.saved[0].ParseStatus)
+	}
+	if len(eventRepo.saved) != 0 || len(attendanceRepo.saved) != 0 || len(reportRepo.saved) != 0 {
+		t.Fatalf("expected unmatched syslog to skip downstream persistence, got events=%d attendance=%d reports=%d", len(eventRepo.saved), len(attendanceRepo.saved), len(reportRepo.saved))
+	}
+}
+
 func sameDay(a, b time.Time) bool {
 	y1, m1, d1 := a.Date()
 	y2, m2, d2 := b.Date()
@@ -516,3 +632,4 @@ var _ repository.EmployeeRepository = (*fakePipelineEmployeeRepo)(nil)
 var _ repository.AttendanceRepository = (*fakePipelineAttendanceRepo)(nil)
 var _ repository.ReportRepository = (*fakePipelineReportRepo)(nil)
 var _ repository.SystemSettingRepository = (*fakePipelineSettingRepo)(nil)
+var _ repository.SyslogReceiveRuleRepository = (*fakePipelineSyslogRuleRepo)(nil)

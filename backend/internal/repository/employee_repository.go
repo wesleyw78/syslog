@@ -35,7 +35,7 @@ func (r *MySQLEmployeeRepository) WithTx(tx *sql.Tx) EmployeeRepository {
 
 func (r *MySQLEmployeeRepository) FindByMACAddress(ctx context.Context, macAddress string) (*domain.Employee, error) {
 	const query = `
-SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at
+SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at
 FROM employees e
 JOIN employee_devices d ON d.employee_id = e.id
 WHERE d.mac_address = ?
@@ -44,10 +44,12 @@ LIMIT 1`
 	row := r.db.QueryRowContext(ctx, trimSQL(query), strings.ToLower(strings.TrimSpace(macAddress)))
 
 	var employee domain.Employee
+	var feishuEmployeeID sql.NullString
 	if err := row.Scan(
 		&employee.ID,
 		&employee.EmployeeNo,
 		&employee.SystemNo,
+		&feishuEmployeeID,
 		&employee.Name,
 		&employee.Status,
 		&employee.CreatedAt,
@@ -55,13 +57,14 @@ LIMIT 1`
 	); err != nil {
 		return nil, err
 	}
+	employee.FeishuEmployeeID = stringFromNullString(feishuEmployeeID)
 
 	return &employee, nil
 }
 
 func (r *MySQLEmployeeRepository) FindByID(ctx context.Context, id uint64) (*domain.Employee, error) {
 	const query = `
-SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at,
        d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
 FROM employees e
 LEFT JOIN employee_devices d ON d.employee_id = e.id
@@ -80,6 +83,7 @@ ORDER BY d.id ASC`
 			employeeID      uint64
 			employeeNo      string
 			systemNo        string
+			feishuEmployeeID sql.NullString
 			name            string
 			status          string
 			createdAt       time.Time
@@ -96,6 +100,7 @@ ORDER BY d.id ASC`
 			&employeeID,
 			&employeeNo,
 			&systemNo,
+			&feishuEmployeeID,
 			&name,
 			&status,
 			&createdAt,
@@ -115,6 +120,7 @@ ORDER BY d.id ASC`
 				ID:         employeeID,
 				EmployeeNo: employeeNo,
 				SystemNo:   systemNo,
+				FeishuEmployeeID: stringFromNullString(feishuEmployeeID),
 				Name:       name,
 				Status:     status,
 				CreatedAt:  createdAt,
@@ -149,7 +155,7 @@ ORDER BY d.id ASC`
 
 func (r *MySQLEmployeeRepository) List(ctx context.Context) ([]domain.Employee, error) {
 	const query = `
-SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at,
        d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
 FROM employees e
 LEFT JOIN employee_devices d ON d.employee_id = e.id
@@ -168,6 +174,7 @@ ORDER BY e.id ASC, d.id ASC`
 			employeeID      uint64
 			employeeNo      string
 			systemNo        string
+			feishuEmployeeID sql.NullString
 			name            string
 			status          string
 			createdAt       time.Time
@@ -184,6 +191,7 @@ ORDER BY e.id ASC, d.id ASC`
 			&employeeID,
 			&employeeNo,
 			&systemNo,
+			&feishuEmployeeID,
 			&name,
 			&status,
 			&createdAt,
@@ -204,6 +212,7 @@ ORDER BY e.id ASC, d.id ASC`
 				ID:         employeeID,
 				EmployeeNo: employeeNo,
 				SystemNo:   systemNo,
+				FeishuEmployeeID: stringFromNullString(feishuEmployeeID),
 				Name:       name,
 				Status:     status,
 				CreatedAt:  createdAt,
@@ -252,15 +261,17 @@ func (r *MySQLEmployeeRepository) Create(ctx context.Context, employee *domain.E
 INSERT INTO employees (
 	employee_no,
 	system_no,
+	feishu_employee_id,
 	name,
 	status
-) VALUES (?, ?, ?, ?)`
+) VALUES (?, ?, ?, ?, ?)`
 
 	result, err := r.db.ExecContext(
 		ctx,
 		trimSQL(query),
 		employee.EmployeeNo,
 		employee.SystemNo,
+		nullableStringArg(employee.FeishuEmployeeID),
 		employee.Name,
 		employee.Status,
 	)
@@ -280,7 +291,7 @@ INSERT INTO employees (
 func (r *MySQLEmployeeRepository) Update(ctx context.Context, employee *domain.Employee) error {
 	const query = `
 UPDATE employees
-SET employee_no = ?, system_no = ?, name = ?, status = ?
+SET employee_no = ?, system_no = ?, feishu_employee_id = ?, name = ?, status = ?
 WHERE id = ?`
 
 	_, err := r.db.ExecContext(
@@ -288,6 +299,7 @@ WHERE id = ?`
 		trimSQL(query),
 		employee.EmployeeNo,
 		employee.SystemNo,
+		nullableStringArg(employee.FeishuEmployeeID),
 		employee.Name,
 		employee.Status,
 		employee.ID,

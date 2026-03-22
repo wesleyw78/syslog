@@ -28,9 +28,12 @@ func TestSettingsAdminServiceUpdateBatchPersistsOnlyKnownKeys(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"id", "setting_key", "setting_value", "updated_at"}).
 		AddRow(uint64(1), "day_end_time", "23:59", now).
 		AddRow(uint64(2), "syslog_retention_days", "30", now).
-		AddRow(uint64(3), "report_target_url", "", now).
-		AddRow(uint64(4), "report_timeout_seconds", "10", now).
-		AddRow(uint64(5), "report_retry_limit", "3", now)
+		AddRow(uint64(3), "feishu_app_id", "", now).
+		AddRow(uint64(4), "feishu_app_secret", "", now).
+		AddRow(uint64(5), "feishu_creator_employee_id", "", now).
+		AddRow(uint64(6), "feishu_location_name", "", now).
+		AddRow(uint64(7), "report_timeout_seconds", "10", now).
+		AddRow(uint64(8), "report_retry_limit", "3", now)
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
 		SELECT id, setting_key, setting_value, updated_at
 		FROM system_settings
@@ -58,18 +61,18 @@ func TestSettingsAdminServiceUpdateBatchPersistsOnlyKnownKeys(t *testing.T) {
 			id = LAST_INSERT_ID(id),
 			setting_value = VALUES(setting_value)
 	`))).
-		WithArgs("report_target_url", "http://example.test/report").
+		WithArgs("feishu_app_id", "cli_abc").
 		WillReturnResult(sqlmock.NewResult(3, 1))
 	mock.ExpectCommit()
 
 	got, err := service.UpdateSettings(context.Background(), []SettingWriteInput{
 		{SettingKey: "day_end_time", SettingValue: "22:00"},
-		{SettingKey: "report_target_url", SettingValue: "http://example.test/report"},
+		{SettingKey: "feishu_app_id", SettingValue: "cli_abc"},
 	})
 	if err != nil {
 		t.Fatalf("expected settings update to succeed, got %v", err)
 	}
-	if len(got) != 5 {
+	if len(got) != 8 {
 		t.Fatalf("expected all current settings to be returned, got %d", len(got))
 	}
 
@@ -80,8 +83,8 @@ func TestSettingsAdminServiceUpdateBatchPersistsOnlyKnownKeys(t *testing.T) {
 	if gotMap["day_end_time"] != "22:00" {
 		t.Fatalf("expected day_end_time to be updated, got %q", gotMap["day_end_time"])
 	}
-	if gotMap["report_target_url"] != "http://example.test/report" {
-		t.Fatalf("expected report_target_url to be updated, got %q", gotMap["report_target_url"])
+	if gotMap["feishu_app_id"] != "cli_abc" {
+		t.Fatalf("expected feishu_app_id to be updated, got %q", gotMap["feishu_app_id"])
 	}
 	if gotMap["syslog_retention_days"] != "30" {
 		t.Fatalf("expected untouched settings to be preserved, got %q", gotMap["syslog_retention_days"])

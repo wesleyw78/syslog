@@ -13,29 +13,6 @@ type EmployeeFormProps = {
 
 type DeviceDraft = EmployeeUpsertInput["devices"][number];
 
-const fieldStyle = {
-  display: "grid",
-  gap: "0.35rem",
-};
-
-const inputStyle = {
-  width: "100%",
-  padding: "0.75rem 0.85rem",
-  border: "1px solid rgba(255, 184, 77, 0.18)",
-  background: "rgba(7, 9, 9, 0.8)",
-  color: "inherit",
-};
-
-const buttonStyle = {
-  padding: "0.8rem 1rem",
-  border: "1px solid rgba(255, 184, 77, 0.35)",
-  background: "linear-gradient(180deg, rgba(41, 28, 8, 0.95), rgba(18, 15, 8, 0.96))",
-  color: "inherit",
-  cursor: "pointer",
-  textTransform: "uppercase" as const,
-  letterSpacing: "0.08em",
-};
-
 function createEmptyDevice(): DeviceDraft {
   return {
     macAddress: "",
@@ -48,6 +25,7 @@ function createEmptyDraft(): EmployeeUpsertInput {
   return {
     employeeNo: "",
     systemNo: "",
+    feishuEmployeeId: "",
     name: "",
     status: "active",
     devices: [createEmptyDevice()],
@@ -62,9 +40,13 @@ function toDraft(initialValues?: EmployeeUpsertInput): EmployeeUpsertInput {
   return {
     employeeNo: initialValues.employeeNo,
     systemNo: initialValues.systemNo,
+    feishuEmployeeId: initialValues.feishuEmployeeId,
     name: initialValues.name,
     status: initialValues.status,
-    devices: initialValues.devices.length > 0 ? initialValues.devices : [createEmptyDevice()],
+    devices:
+      initialValues.devices.length > 0
+        ? initialValues.devices
+        : [createEmptyDevice()],
   };
 }
 
@@ -101,12 +83,26 @@ export function EmployeeForm({
     }));
   }
 
+  function removeDevice(index: number) {
+    setDraft((current) => {
+      if (current.devices.length <= 1) {
+        return current;
+      }
+
+      return {
+        ...current,
+        devices: current.devices.filter((_, deviceIndex) => deviceIndex !== index),
+      };
+    });
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const nextDraft: EmployeeUpsertInput = {
       employeeNo: draft.employeeNo.trim(),
       systemNo: draft.systemNo.trim(),
+      feishuEmployeeId: draft.feishuEmployeeId.trim(),
       name: draft.name.trim(),
       status: draft.status.trim() || "active",
       devices: draft.devices.map((device) => ({
@@ -116,8 +112,13 @@ export function EmployeeForm({
       })),
     };
 
-    if (!nextDraft.employeeNo || !nextDraft.systemNo || !nextDraft.name) {
-      setErrorMessage("员工编号、系统编号和姓名不能为空");
+    if (
+      !nextDraft.employeeNo ||
+      !nextDraft.systemNo ||
+      !nextDraft.feishuEmployeeId ||
+      !nextDraft.name
+    ) {
+      setErrorMessage("员工编号、系统编号、飞书员工 ID 和姓名不能为空");
       return;
     }
 
@@ -144,14 +145,11 @@ export function EmployeeForm({
   }
 
   return (
-    <form
-      noValidate
-      onSubmit={handleSubmit}
-      style={{ display: "grid", gap: "0.9rem" }}
-    >
-      <label style={fieldStyle}>
-        <span>员工编号</span>
+    <form noValidate onSubmit={handleSubmit} className="console-form">
+      <label className="form-field">
+        <span className="form-field__label">员工编号</span>
         <input
+          className="form-field__control"
           required
           type="text"
           value={draft.employeeNo}
@@ -159,13 +157,13 @@ export function EmployeeForm({
             setDraft((current) => ({ ...current, employeeNo: event.target.value }))
           }
           onInput={() => setErrorMessage("")}
-          style={inputStyle}
         />
       </label>
 
-      <label style={fieldStyle}>
-        <span>系统编号</span>
+      <label className="form-field">
+        <span className="form-field__label">系统编号</span>
         <input
+          className="form-field__control"
           required
           type="text"
           value={draft.systemNo}
@@ -173,13 +171,13 @@ export function EmployeeForm({
             setDraft((current) => ({ ...current, systemNo: event.target.value }))
           }
           onInput={() => setErrorMessage("")}
-          style={inputStyle}
         />
       </label>
 
-      <label style={fieldStyle}>
-        <span>姓名</span>
+      <label className="form-field">
+        <span className="form-field__label">姓名</span>
         <input
+          className="form-field__control"
           required
           type="text"
           value={draft.name}
@@ -187,40 +185,62 @@ export function EmployeeForm({
             setDraft((current) => ({ ...current, name: event.target.value }))
           }
           onInput={() => setErrorMessage("")}
-          style={inputStyle}
         />
       </label>
 
-      <div style={{ display: "grid", gap: "0.65rem" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem" }}>
-          <span>设备</span>
+      <label className="form-field">
+        <span className="form-field__label">飞书员工 ID</span>
+        <input
+          className="form-field__control"
+          required
+          type="text"
+          value={draft.feishuEmployeeId}
+          onChange={(event) =>
+            setDraft((current) => ({
+              ...current,
+              feishuEmployeeId: event.target.value,
+            }))
+          }
+          onInput={() => setErrorMessage("")}
+        />
+      </label>
+
+      <section className="form-section">
+        <div className="form-section__header">
+          <div>
+            <h4>绑定设备</h4>
+            <p>维护员工可识别的终端 MAC 与标签。</p>
+          </div>
           <button
             type="button"
             onClick={addDevice}
             disabled={isSubmitting}
-            style={{
-              ...buttonStyle,
-              padding: "0.55rem 0.8rem",
-            }}
+            className="button button--ghost button--small"
           >
             添加设备
           </button>
         </div>
 
         {draft.devices.map((device, index) => (
-          <div
-            key={index}
-            style={{
-              display: "grid",
-              gap: "0.65rem",
-              padding: "0.8rem",
-              border: "1px solid rgba(255, 184, 77, 0.12)",
-              background: "rgba(7, 9, 9, 0.56)",
-            }}
-          >
-            <label style={fieldStyle}>
-              <span>{`设备 ${index + 1} MAC`}</span>
+          <div key={index} className="device-card">
+            <div className="device-card__header">
+              <strong>{`设备 ${index + 1}`}</strong>
+              {draft.devices.length > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => removeDevice(index)}
+                  disabled={isSubmitting}
+                  className="button button--ghost button--small"
+                >
+                  {`移除设备 ${index + 1}`}
+                </button>
+              ) : null}
+            </div>
+
+            <label className="form-field">
+              <span className="form-field__label">{`设备 ${index + 1} MAC`}</span>
               <input
+                className="form-field__control"
                 required
                 type="text"
                 value={device.macAddress}
@@ -228,13 +248,13 @@ export function EmployeeForm({
                   updateDevice(index, { macAddress: event.target.value })
                 }
                 onInput={() => setErrorMessage("")}
-                style={inputStyle}
               />
             </label>
 
-            <label style={fieldStyle}>
-              <span>{`设备 ${index + 1} 标签`}</span>
+            <label className="form-field">
+              <span className="form-field__label">{`设备 ${index + 1} 标签`}</span>
               <input
+                className="form-field__control"
                 required
                 type="text"
                 value={device.deviceLabel}
@@ -242,24 +262,16 @@ export function EmployeeForm({
                   updateDevice(index, { deviceLabel: event.target.value })
                 }
                 onInput={() => setErrorMessage("")}
-                style={inputStyle}
               />
             </label>
           </div>
         ))}
-      </div>
+      </section>
 
-      {errorMessage ? (
-        <p
-          role="alert"
-          style={{ margin: 0, color: "#ffb86b", letterSpacing: "0.03em" }}
-        >
-          {errorMessage}
-        </p>
-      ) : null}
+      {errorMessage ? <p role="alert" className="form-error">{errorMessage}</p> : null}
 
-      <div style={{ display: "flex", gap: "0.65rem" }}>
-        <button type="submit" disabled={isSubmitting} style={buttonStyle}>
+      <div className="form-actions">
+        <button type="submit" disabled={isSubmitting} className="button button--primary">
           {isSubmitting ? "提交中..." : submitLabel}
         </button>
         {onCancel ? (
@@ -267,11 +279,7 @@ export function EmployeeForm({
             type="button"
             onClick={onCancel}
             disabled={isSubmitting}
-            style={{
-              ...buttonStyle,
-              border: "1px solid rgba(255, 184, 77, 0.18)",
-              background: "rgba(9, 11, 12, 0.86)",
-            }}
+            className="button button--ghost"
           >
             取消
           </button>

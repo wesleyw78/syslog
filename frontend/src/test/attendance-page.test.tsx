@@ -151,6 +151,8 @@ describe("attendance page", () => {
 
     render(<AttendancePage />);
 
+    expect(screen.getByRole("heading", { name: "考勤复核" })).toBeInTheDocument();
+
     const correctedRow = await screen.findByRole("group", {
       name: /Arjun Patel 考勤记录/i,
     });
@@ -212,6 +214,7 @@ describe("attendance page", () => {
 
     render(<AttendancePage />);
 
+    expect(screen.getByRole("heading", { name: "考勤复核" })).toBeInTheDocument();
     expect(
       await screen.findByText("考勤异常队列加载失败，请稍后重试"),
     ).toBeInTheDocument();

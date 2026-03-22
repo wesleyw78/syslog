@@ -71,6 +71,10 @@ func statusCodeForServiceError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, service.ErrInvalidAttendanceCorrection):
 		return http.StatusBadRequest
+	case errors.Is(err, service.ErrInvalidDebugInput):
+		return http.StatusBadRequest
+	case errors.Is(err, service.ErrInvalidSyslogRuleInput):
+		return http.StatusBadRequest
 	case errors.Is(err, sql.ErrNoRows):
 		return http.StatusNotFound
 	case isDuplicateKeyError(err):

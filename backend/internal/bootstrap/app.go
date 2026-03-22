@@ -15,16 +15,21 @@ type Repositories struct {
 	Employees      repository.EmployeeRepository
 	SyslogMessages repository.SyslogMessageRepository
 	ClientEvents   repository.ClientEventRepository
+	Logs           repository.LogQueryRepository
 	Attendance     repository.AttendanceRepository
 	Reports        repository.ReportRepository
 	Settings       repository.SystemSettingRepository
+	SyslogRules    repository.SyslogReceiveRuleRepository
 }
 
 type Services struct {
-	SyslogPipeline  *service.SyslogPipeline
-	EmployeeAdmin   *service.EmployeeAdminService
-	SettingsAdmin   *service.SettingsAdminService
-	AttendanceAdmin *service.AttendanceAdminService
+	SyslogPipeline   *service.SyslogPipeline
+	EmployeeAdmin    *service.EmployeeAdminService
+	SettingsAdmin    *service.SettingsAdminService
+	SyslogRuleAdmin  *service.SyslogRuleAdminService
+	AttendanceAdmin  *service.AttendanceAdminService
+	ReportDispatcher *service.AttendanceReportDispatcher
+	DebugAdmin       *service.DebugAdminService
 }
 
 type App struct {
@@ -60,13 +65,16 @@ func New(getenv func(string) string) (App, error) {
 			Employees:      repository.NewMySQLEmployeeRepository(db),
 			SyslogMessages: repository.NewMySQLSyslogMessageRepository(db),
 			ClientEvents:   repository.NewMySQLClientEventRepository(db),
+			Logs:           repository.NewMySQLLogQueryRepository(db),
 			Attendance:     repository.NewMySQLAttendanceRepository(db),
 			Reports:        repository.NewMySQLReportRepository(db),
 			Settings:       repository.NewMySQLSystemSettingRepository(db),
+			SyslogRules:    repository.NewMySQLSyslogReceiveRuleRepository(db),
 		},
 	}
 	app.Services.EmployeeAdmin = service.NewEmployeeAdminService(db, app.Repositories.Employees)
 	app.Services.SettingsAdmin = service.NewSettingsAdminService(db, app.Repositories.Settings)
+	app.Services.SyslogRuleAdmin = service.NewSyslogRuleAdminService(app.Repositories.SyslogRules)
 	app.Services.AttendanceAdmin = service.NewAttendanceAdminService(db, app.Repositories.Attendance, app.Repositories.Reports, app.Repositories.Settings, service.NewReportService())
 	app.Services.SyslogPipeline = service.NewSyslogPipeline(service.SyslogPipelineDeps{
 		DB:            db,
@@ -76,8 +84,22 @@ func New(getenv func(string) string) (App, error) {
 		Attendance:    app.Repositories.Attendance,
 		Reports:       app.Repositories.Reports,
 		Settings:      app.Repositories.Settings,
+		Rules:         app.Repositories.SyslogRules,
 		RetentionDays: cfg.SyslogRetentionDays,
 	})
+	app.Services.ReportDispatcher = service.NewAttendanceReportDispatcher(service.AttendanceReportDispatcherDeps{
+		Reports:   app.Repositories.Reports,
+		Employees: app.Repositories.Employees,
+		Settings:  app.Repositories.Settings,
+	})
+	app.Services.DebugAdmin = service.NewDebugAdminService(
+		loc,
+		app.Services.SyslogPipeline,
+		app.Repositories.Attendance,
+		app.Repositories.Reports,
+		app.Services.ReportDispatcher,
+		service.NewReportService(),
+	)
 
 	return app, nil
 }

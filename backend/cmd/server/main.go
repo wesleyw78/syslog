@@ -41,12 +41,16 @@ func main() {
 		EmployeeAdmin:   app.Services.EmployeeAdmin,
 		SyslogMessages:  app.Repositories.SyslogMessages,
 		ClientEvents:    app.Repositories.ClientEvents,
+		Logs:            app.Repositories.Logs,
 		Attendance:      app.Repositories.Attendance,
 		AttendanceAdmin: app.Services.AttendanceAdmin,
+		DebugAdmin:      app.Services.DebugAdmin,
 		Settings:        app.Repositories.Settings,
 		SettingsAdmin:   app.Services.SettingsAdmin,
+		SyslogRules:     app.Repositories.SyslogRules,
+		SyslogRuleAdmin: app.Services.SyslogRuleAdmin,
 	})
-	udpListener := ingest.NewUDPListener("", func(ctx context.Context, payload []byte, addr net.Addr) error {
+	udpListener := ingest.NewUDPListener(app.Config.SyslogUDPAddr, func(ctx context.Context, payload []byte, addr net.Addr) error {
 		receivedAt := time.Now()
 		if app.Location != nil {
 			receivedAt = receivedAt.In(app.Location)
@@ -78,12 +82,22 @@ func main() {
 		}
 	}()
 
+	if app.Services.ReportDispatcher != nil {
+		go func() {
+			if err := app.Services.ReportDispatcher.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				log.Printf("attendance report dispatcher stopped: %v", err)
+				stop()
+			}
+		}()
+	}
+
 	log.Printf(
-		"syslog backend bootstrap ready: timezone=%s retention_days=%d scheduler=%T admin_http=%s",
+		"syslog backend bootstrap ready: timezone=%s retention_days=%d scheduler=%T admin_http=%s syslog_udp=%s",
 		app.Config.Timezone,
 		app.Config.SyslogRetentionDays,
 		dayEndCron,
 		adminHTTPAddr,
+		app.Config.SyslogUDPAddr,
 	)
 	<-ctx.Done()
 

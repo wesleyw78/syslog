@@ -37,6 +37,14 @@ func nullableIntArg(value *int) any {
 	return int64(*value)
 }
 
+func nullableStringArg(value string) any {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+
+	return value
+}
+
 func timeFromNullTime(value sql.NullTime) *time.Time {
 	if !value.Valid {
 		return nil

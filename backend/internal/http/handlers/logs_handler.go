@@ -2,49 +2,82 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
+	"strings"
 
-	"syslog/internal/domain"
 	"syslog/internal/repository"
 )
 
-type logEntry struct {
-	Message domain.SyslogMessage `json:"message"`
-	Event   *domain.ClientEvent  `json:"event,omitempty"`
+type paginatedLogsResponse struct {
+	Items      []logEntry         `json:"items"`
+	Pagination paginationResponse `json:"pagination"`
 }
 
-func NewLogsHandler(messagesRepo repository.SyslogMessageRepository, eventsRepo repository.ClientEventRepository) http.HandlerFunc {
+type logEntry struct {
+	Message any `json:"message"`
+	Event   any `json:"event,omitempty"`
+}
+
+type paginationResponse struct {
+	Page       int `json:"page"`
+	PageSize   int `json:"pageSize"`
+	TotalItems int `json:"totalItems"`
+	TotalPages int `json:"totalPages"`
+}
+
+func NewLogsHandler(logsRepo repository.LogQueryRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if messagesRepo == nil || eventsRepo == nil {
+		if logsRepo == nil {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
-		messages, err := messagesRepo.ListRecent(r.Context(), 20)
+		params := repository.LogListParams{
+			Page:     parsePositiveInt(r.URL.Query().Get("page"), 1),
+			PageSize: 10,
+			Query:    strings.TrimSpace(r.URL.Query().Get("query")),
+			Scope:    normalizeLogsScope(r.URL.Query().Get("scope")),
+			FromDate: strings.TrimSpace(r.URL.Query().Get("fromDate")),
+			ToDate:   strings.TrimSpace(r.URL.Query().Get("toDate")),
+		}
+		result, err := logsRepo.ListPage(r.Context(), params)
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		events, err := eventsRepo.ListRecent(r.Context(), 20)
-		if err != nil {
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
 
-		eventsByMessageID := make(map[uint64]domain.ClientEvent, len(events))
-		for _, event := range events {
-			eventsByMessageID[event.SyslogMessageID] = event
-		}
-
-		items := make([]any, 0, len(messages))
-		for _, message := range messages {
-			entry := logEntry{Message: message}
-			if event, ok := eventsByMessageID[message.ID]; ok {
-				copied := event
-				entry.Event = &copied
+		items := make([]logEntry, 0, len(result.Items))
+		for _, item := range result.Items {
+			entry := logEntry{Message: item.Message}
+			if item.Event != nil {
+				entry.Event = item.Event
 			}
 			items = append(items, entry)
 		}
 
-		writeJSON(w, http.StatusOK, listResponse{Items: items})
+		writeJSON(w, http.StatusOK, paginatedLogsResponse{
+			Items: items,
+			Pagination: paginationResponse{
+				Page:       result.Page,
+				PageSize:   result.PageSize,
+				TotalItems: result.TotalItems,
+				TotalPages: result.TotalPages,
+			},
+		})
 	}
+}
+
+func parsePositiveInt(value string, fallback int) int {
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < 1 {
+		return fallback
+	}
+	return parsed
+}
+
+func normalizeLogsScope(value string) string {
+	if strings.EqualFold(strings.TrimSpace(value), "all") {
+		return "all"
+	}
+	return "matched"
 }

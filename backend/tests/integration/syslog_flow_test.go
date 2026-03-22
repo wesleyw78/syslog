@@ -65,7 +65,6 @@ func TestSyslogFlow(t *testing.T) {
 		connectResult.Record,
 		"clock_in",
 		*connectResult.Record.FirstConnectAt,
-		"http://report.local/clock-in",
 	)
 	if clockInReport.ReportType != "clock_in" {
 		t.Fatalf("expected clock_in report type, got %q", clockInReport.ReportType)
@@ -105,7 +104,6 @@ func TestSyslogFlow(t *testing.T) {
 		finalizedRecord,
 		"clock_out",
 		*finalizedRecord.LastDisconnectAt,
-		"http://report.local/clock-out",
 	)
 	if clockOutReport.ReportType != "clock_out" {
 		t.Fatalf("expected clock_out report type, got %q", clockOutReport.ReportType)

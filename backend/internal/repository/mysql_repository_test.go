@@ -48,10 +48,10 @@ func TestMySQLEmployeeRepositoryFindByMACAddress(t *testing.T) {
 
 	repo := NewMySQLEmployeeRepository(db)
 	now := mustTime(t, "2026-03-21T08:00:00Z")
-	rows := sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at"}).
-		AddRow(uint64(7), "EMP-007", "SYS-007", "Alice", "active", now, now)
+	rows := sqlmock.NewRows([]string{"id", "employee_no", "system_no", "feishu_employee_id", "name", "status", "created_at", "updated_at"}).
+		AddRow(uint64(7), "EMP-007", "SYS-007", "fs_emp_007", "Alice", "active", now, now)
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at
+		SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at
 		FROM employees e
 		JOIN employee_devices d ON d.employee_id = e.id
 		WHERE d.mac_address = ?
@@ -65,11 +65,43 @@ func TestMySQLEmployeeRepositoryFindByMACAddress(t *testing.T) {
 	if got == nil {
 		t.Fatalf("expected employee, got nil")
 	}
-	if got.ID != 7 || got.EmployeeNo != "EMP-007" || got.SystemNo != "SYS-007" || got.Name != "Alice" || got.Status != "active" {
+	if got.ID != 7 || got.EmployeeNo != "EMP-007" || got.SystemNo != "SYS-007" || got.FeishuEmployeeID != "fs_emp_007" || got.Name != "Alice" || got.Status != "active" {
 		t.Fatalf("unexpected employee: %+v", got)
 	}
 	if !got.CreatedAt.Equal(now) || !got.UpdatedAt.Equal(now) {
 		t.Fatalf("unexpected timestamps: %+v", got)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("expected all query expectations to be met, got %v", err)
+	}
+}
+
+func TestMySQLEmployeeRepositoryFindByMACAddressHandlesNullFeishuEmployeeID(t *testing.T) {
+	db, mock := newMockDB(t)
+	defer db.Close()
+
+	repo := NewMySQLEmployeeRepository(db)
+	now := mustTime(t, "2026-03-21T08:00:00Z")
+	rows := sqlmock.NewRows([]string{"id", "employee_no", "system_no", "feishu_employee_id", "name", "status", "created_at", "updated_at"}).
+		AddRow(uint64(8), "EMP-008", "SYS-008", nil, "Bob", "active", now, now)
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at
+		FROM employees e
+		JOIN employee_devices d ON d.employee_id = e.id
+		WHERE d.mac_address = ?
+		LIMIT 1
+	`))).WithArgs("11:22:33:44:55:66").WillReturnRows(rows)
+
+	got, err := repo.FindByMACAddress(context.Background(), "11:22:33:44:55:66")
+	if err != nil {
+		t.Fatalf("expected lookup to succeed with null feishu employee id, got %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected employee, got nil")
+	}
+	if got.FeishuEmployeeID != "" {
+		t.Fatalf("expected null feishu employee id to normalize to empty string, got %q", got.FeishuEmployeeID)
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -83,11 +115,11 @@ func TestMySQLEmployeeRepositoryList(t *testing.T) {
 
 	repo := NewMySQLEmployeeRepository(db)
 	now := mustTime(t, "2026-03-21T08:00:00Z")
-	rows := sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
-		AddRow(uint64(1), "EMP-001", "SYS-001", "Alice", "active", now, now, nil, nil, nil, nil, nil, nil).
-		AddRow(uint64(2), "EMP-002", "SYS-002", "Bob", "disabled", now, now, nil, nil, nil, nil, nil, nil)
+	rows := sqlmock.NewRows([]string{"id", "employee_no", "system_no", "feishu_employee_id", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
+		AddRow(uint64(1), "EMP-001", "SYS-001", "fs_emp_001", "Alice", "active", now, now, nil, nil, nil, nil, nil, nil).
+		AddRow(uint64(2), "EMP-002", "SYS-002", nil, "Bob", "disabled", now, now, nil, nil, nil, nil, nil, nil)
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at,
 		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
 		FROM employees e
 		LEFT JOIN employee_devices d ON d.employee_id = e.id
@@ -104,6 +136,9 @@ func TestMySQLEmployeeRepositoryList(t *testing.T) {
 	if got[0].EmployeeNo != "EMP-001" || got[1].EmployeeNo != "EMP-002" {
 		t.Fatalf("unexpected list result: %+v", got)
 	}
+	if got[0].FeishuEmployeeID != "fs_emp_001" || got[1].FeishuEmployeeID != "" {
+		t.Fatalf("unexpected feishu employee ids: %+v", got)
+	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("expected all query expectations to be met, got %v", err)
@@ -116,10 +151,10 @@ func TestMySQLEmployeeRepositoryFindByID(t *testing.T) {
 
 	repo := NewMySQLEmployeeRepository(db)
 	now := mustTime(t, "2026-03-21T08:00:00Z")
-	rows := sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
-		AddRow(uint64(1), "EMP-001", "SYS-001", "Alice", "active", now, now, uint64(11), "aa:bb:cc:dd:ee:ff", "Phone", "active", now, now)
+	rows := sqlmock.NewRows([]string{"id", "employee_no", "system_no", "feishu_employee_id", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
+		AddRow(uint64(1), "EMP-001", "SYS-001", "fs_emp_001", "Alice", "active", now, now, uint64(11), "aa:bb:cc:dd:ee:ff", "Phone", "active", now, now)
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at,
 		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
 		FROM employees e
 		LEFT JOIN employee_devices d ON d.employee_id = e.id
@@ -133,6 +168,9 @@ func TestMySQLEmployeeRepositoryFindByID(t *testing.T) {
 	}
 	if got == nil || got.ID != 1 {
 		t.Fatalf("unexpected employee result: %+v", got)
+	}
+	if got.FeishuEmployeeID != "fs_emp_001" {
+		t.Fatalf("expected feishu employee id to round-trip, got %+v", got)
 	}
 	if len(got.Devices) != 1 || got.Devices[0].MacAddress != "aa:bb:cc:dd:ee:ff" {
 		t.Fatalf("expected device to round-trip, got %+v", got.Devices)
@@ -148,15 +186,16 @@ func TestMySQLEmployeeRepositoryCreateUpdateDisableAndReplaceDevices(t *testing.
 	defer db.Close()
 
 	repo := NewMySQLEmployeeRepository(db)
-	employee := &domain.Employee{EmployeeNo: "EMP-001", SystemNo: "SYS-001", Name: "Alice", Status: "active"}
+	employee := &domain.Employee{EmployeeNo: "EMP-001", SystemNo: "SYS-001", FeishuEmployeeID: "fs_emp_001", Name: "Alice", Status: "active"}
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		INSERT INTO employees (
 			employee_no,
 			system_no,
+			feishu_employee_id,
 			name,
 			status
-		) VALUES (?, ?, ?, ?)
-	`))).WithArgs("EMP-001", "SYS-001", "Alice", "active").
+		) VALUES (?, ?, ?, ?, ?)
+	`))).WithArgs("EMP-001", "SYS-001", "fs_emp_001", "Alice", "active").
 		WillReturnResult(sqlmock.NewResult(11, 1))
 
 	if err := repo.Create(context.Background(), employee); err != nil {
@@ -170,9 +209,9 @@ func TestMySQLEmployeeRepositoryCreateUpdateDisableAndReplaceDevices(t *testing.
 	employee.Status = "active"
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		UPDATE employees
-		SET employee_no = ?, system_no = ?, name = ?, status = ?
+		SET employee_no = ?, system_no = ?, feishu_employee_id = ?, name = ?, status = ?
 		WHERE id = ?
-	`))).WithArgs("EMP-001", "SYS-001", "Alice Updated", "active", uint64(11)).
+	`))).WithArgs("EMP-001", "SYS-001", "fs_emp_001", "Alice Updated", "active", uint64(11)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	if err := repo.Update(context.Background(), employee); err != nil {
 		t.Fatalf("expected update to succeed, got %v", err)
@@ -180,9 +219,9 @@ func TestMySQLEmployeeRepositoryCreateUpdateDisableAndReplaceDevices(t *testing.
 
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		UPDATE employees
-		SET employee_no = ?, system_no = ?, name = ?, status = ?
+		SET employee_no = ?, system_no = ?, feishu_employee_id = ?, name = ?, status = ?
 		WHERE id = ?
-	`))).WithArgs("EMP-001", "SYS-001", "Alice Updated", "active", uint64(12)).
+	`))).WithArgs("EMP-001", "SYS-001", nil, "Alice Updated", "active", uint64(12)).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	if err := repo.Update(context.Background(), &domain.Employee{ID: 12, EmployeeNo: "EMP-001", SystemNo: "SYS-001", Name: "Alice Updated", Status: "active"}); err != nil {
 		t.Fatalf("expected update no-op to succeed, got %v", err)
@@ -278,9 +317,10 @@ func TestMySQLSyslogMessageRepositorySaveAndListRecent(t *testing.T) {
 			source_ip,
 			protocol,
 			parse_status,
+			matched_rule_id,
 			retention_expire_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?)
-	`))).WithArgs(receivedAt, logTime, "<134>AP connect", "10.0.0.1", "udp", "parsed", expiresAt).
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`))).WithArgs(receivedAt, logTime, "<134>AP connect", "10.0.0.1", "udp", "parsed", nil, expiresAt).
 		WillReturnResult(sqlmock.NewResult(19, 1))
 
 	if err := repo.Save(context.Background(), message); err != nil {
@@ -290,10 +330,10 @@ func TestMySQLSyslogMessageRepositorySaveAndListRecent(t *testing.T) {
 		t.Fatalf("expected inserted id 19, got %d", message.ID)
 	}
 
-	rows := sqlmock.NewRows([]string{"id", "received_at", "log_time", "raw_message", "source_ip", "protocol", "parse_status", "retention_expire_at"}).
-		AddRow(uint64(19), receivedAt, logTime, "<134>AP connect", "10.0.0.1", "udp", "parsed", expiresAt)
+	rows := sqlmock.NewRows([]string{"id", "received_at", "log_time", "raw_message", "source_ip", "protocol", "parse_status", "matched_rule_id", "retention_expire_at"}).
+		AddRow(uint64(19), receivedAt, logTime, "<134>AP connect", "10.0.0.1", "udp", "parsed", nil, expiresAt)
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT id, received_at, log_time, raw_message, source_ip, protocol, parse_status, retention_expire_at
+		SELECT id, received_at, log_time, raw_message, source_ip, protocol, parse_status, matched_rule_id, retention_expire_at
 		FROM syslog_messages
 		ORDER BY received_at DESC, id DESC
 		LIMIT ?
@@ -382,6 +422,143 @@ func TestMySQLClientEventRepositorySaveAndListRecent(t *testing.T) {
 	}
 	if got[0].MatchedEmployeeID == nil || *got[0].MatchedEmployeeID != matchedID {
 		t.Fatalf("expected matched employee id to round trip, got %+v", got[0].MatchedEmployeeID)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("expected all sql expectations to be met, got %v", err)
+	}
+}
+
+func TestMySQLLogQueryRepositoryListPage(t *testing.T) {
+	db, mock := newMockDB(t)
+	defer db.Close()
+
+	repo := NewMySQLLogQueryRepository(db)
+	receivedAt := mustTime(t, "2026-03-21T08:00:00Z")
+	logTime := mustTime(t, "2026-03-21T07:59:00Z")
+	eventTime := mustTime(t, "2026-03-21T08:00:30Z")
+
+	countRows := sqlmock.NewRows([]string{"count"}).AddRow(25)
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT COUNT(*)
+		FROM syslog_messages AS sm
+		LEFT JOIN client_events AS ce ON ce.syslog_message_id = sm.id
+		WHERE ce.id IS NOT NULL
+		AND (
+			sm.raw_message LIKE ?
+			OR sm.parse_status LIKE ?
+			OR sm.source_ip LIKE ?
+			OR sm.protocol LIKE ?
+			OR ce.event_type LIKE ?
+			OR ce.station_mac LIKE ?
+			OR ce.hostname LIKE ?
+			OR ce.ap_mac LIKE ?
+			OR ce.ssid LIKE ?
+			OR ce.ipv4 LIKE ?
+			OR ce.ipv6 LIKE ?
+			OR ce.os_vendor LIKE ?
+			OR ce.match_status LIKE ?
+		)
+		AND sm.received_at >= ?
+		AND sm.received_at < ?
+	`))).WithArgs(
+		"%device%", "%device%", "%device%", "%device%",
+		"%device%", "%device%", "%device%", "%device%",
+		"%device%", "%device%", "%device%", "%device%", "%device%",
+		"2026-03-20 00:00:00",
+		"2026-03-22 00:00:00",
+	).WillReturnRows(countRows)
+
+	resultRows := sqlmock.NewRows([]string{
+		"message_id", "received_at", "log_time", "raw_message", "source_ip", "protocol", "parse_status", "matched_rule_id", "retention_expire_at", "matched_rule_name",
+		"event_id", "syslog_message_id", "event_date", "event_time", "event_type", "station_mac", "ap_mac", "ssid", "ipv4", "ipv6", "hostname", "os_vendor", "matched_employee_id", "match_status",
+	}).AddRow(
+		uint64(19), receivedAt, logTime, "<134> device connected", "10.0.0.1", "udp", "parsed", nil, receivedAt.Add(24*time.Hour), "默认 connect 规则",
+		uint64(33), uint64(19), receivedAt, eventTime, "connect", "aa:bb:cc:dd:ee:ff", "11:22:33:44:55:66", "corp", "10.0.0.2", "", "device-1", "apple", nil, "matched",
+	)
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT
+			sm.id,
+			sm.received_at,
+			sm.log_time,
+			sm.raw_message,
+			sm.source_ip,
+			sm.protocol,
+			sm.parse_status,
+			sm.matched_rule_id,
+			sm.retention_expire_at,
+			sr.name,
+			ce.id,
+			ce.syslog_message_id,
+			ce.event_date,
+			ce.event_time,
+			ce.event_type,
+			ce.station_mac,
+			ce.ap_mac,
+			ce.ssid,
+			ce.ipv4,
+			ce.ipv6,
+			ce.hostname,
+			ce.os_vendor,
+			ce.matched_employee_id,
+			ce.match_status
+		FROM syslog_messages AS sm
+		LEFT JOIN syslog_receive_rules AS sr ON sr.id = sm.matched_rule_id
+		LEFT JOIN client_events AS ce ON ce.syslog_message_id = sm.id
+		WHERE ce.id IS NOT NULL
+		AND (
+			sm.raw_message LIKE ?
+			OR sm.parse_status LIKE ?
+			OR sm.source_ip LIKE ?
+			OR sm.protocol LIKE ?
+			OR ce.event_type LIKE ?
+			OR ce.station_mac LIKE ?
+			OR ce.hostname LIKE ?
+			OR ce.ap_mac LIKE ?
+			OR ce.ssid LIKE ?
+			OR ce.ipv4 LIKE ?
+			OR ce.ipv6 LIKE ?
+			OR ce.os_vendor LIKE ?
+			OR ce.match_status LIKE ?
+		)
+		AND sm.received_at >= ?
+		AND sm.received_at < ?
+		ORDER BY sm.received_at DESC, sm.id DESC
+		LIMIT ? OFFSET ?
+	`))).WithArgs(
+		"%device%", "%device%", "%device%", "%device%",
+		"%device%", "%device%", "%device%", "%device%",
+		"%device%", "%device%", "%device%", "%device%", "%device%",
+		"2026-03-20 00:00:00",
+		"2026-03-22 00:00:00",
+		10, 10,
+	).WillReturnRows(resultRows)
+
+	result, err := repo.ListPage(context.Background(), LogListParams{
+		FromDate: "2026-03-20",
+		Page:     2,
+		PageSize: 10,
+		Query:    "device",
+		ToDate:   "2026-03-21",
+	})
+	if err != nil {
+		t.Fatalf("expected list page to succeed, got %v", err)
+	}
+
+	if result.Page != 2 || result.PageSize != 10 {
+		t.Fatalf("unexpected pagination: %+v", result)
+	}
+	if result.TotalItems != 25 || result.TotalPages != 3 {
+		t.Fatalf("unexpected totals: %+v", result)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("expected one log item, got %d", len(result.Items))
+	}
+	if result.Items[0].Message.ID != 19 {
+		t.Fatalf("unexpected message id: %+v", result.Items[0].Message)
+	}
+	if result.Items[0].Event == nil || result.Items[0].Event.ID != 33 {
+		t.Fatalf("unexpected event: %+v", result.Items[0].Event)
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -523,16 +700,24 @@ func TestMySQLReportRepositoryFindSaveAndListByAttendanceRecordID(t *testing.T) 
 	repo := NewMySQLReportRepository(db)
 	reportedAt := mustTime(t, "2026-03-21T09:00:00Z")
 	report := &domain.AttendanceReport{
-		AttendanceRecordID: 55,
-		ReportType:         "clock_in",
-		IdempotencyKey:     "attendance-report/employee-42-2026-03-21/clock_in/2026-03-21T08:00:00Z/v2",
-		PayloadJSON:        `{"attendanceRecordId":55}`,
-		TargetURL:          "http://example.test/report",
-		ReportStatus:       "pending",
-		ResponseCode:       nil,
-		ResponseBody:       "",
-		ReportedAt:         &reportedAt,
-		RetryCount:         1,
+		AttendanceRecordID:       55,
+		ReportType:               "clock_in",
+		IdempotencyKey:           "attendance-report/employee-42-2026-03-21/clock_in/2026-03-21T08:00:00Z/v2",
+		PayloadJSON:              `{"attendanceRecordId":55}`,
+		TargetURL:                "http://example.test/report",
+		ExternalRecordID:         "flow_001",
+		DeleteRecordID:           "flow_old_001",
+		ReportStatus:             "pending",
+		ResponseCode:             nil,
+		ResponseBody:             "",
+		NotificationStatus:       "pending",
+		NotificationMessageID:    "",
+		NotificationResponseCode: nil,
+		NotificationResponseBody: "",
+		NotificationSentAt:       nil,
+		NotificationRetryCount:   0,
+		ReportedAt:               &reportedAt,
+		RetryCount:               1,
 	}
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		INSERT INTO attendance_reports (
@@ -541,24 +726,40 @@ func TestMySQLReportRepositoryFindSaveAndListByAttendanceRecordID(t *testing.T) 
 			idempotency_key,
 			payload_json,
 			target_url,
+			external_record_id,
+			delete_record_id,
 			report_status,
 			response_code,
 			response_body,
+			notification_status,
+			notification_message_id,
+			notification_response_code,
+			notification_response_body,
+			notification_sent_at,
+			notification_retry_count,
 			reported_at,
 			retry_count
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
 			id = LAST_INSERT_ID(id),
 			attendance_record_id = VALUES(attendance_record_id),
 			report_type = VALUES(report_type),
 			payload_json = VALUES(payload_json),
 			target_url = VALUES(target_url),
+			external_record_id = VALUES(external_record_id),
+			delete_record_id = VALUES(delete_record_id),
 			report_status = VALUES(report_status),
 			response_code = VALUES(response_code),
 			response_body = VALUES(response_body),
+			notification_status = VALUES(notification_status),
+			notification_message_id = VALUES(notification_message_id),
+			notification_response_code = VALUES(notification_response_code),
+			notification_response_body = VALUES(notification_response_body),
+			notification_sent_at = VALUES(notification_sent_at),
+			notification_retry_count = VALUES(notification_retry_count),
 			reported_at = VALUES(reported_at),
 			retry_count = VALUES(retry_count)
-	`))).WithArgs(int64(55), "clock_in", report.IdempotencyKey, report.PayloadJSON, report.TargetURL, "pending", nil, "", reportedAt, int64(1)).
+	`))).WithArgs(int64(55), "clock_in", report.IdempotencyKey, report.PayloadJSON, report.TargetURL, report.ExternalRecordID, report.DeleteRecordID, "pending", nil, "", "pending", "", nil, "", nil, int64(0), reportedAt, int64(1)).
 		WillReturnResult(sqlmock.NewResult(88, 1))
 
 	if err := repo.Save(context.Background(), report); err != nil {
@@ -568,10 +769,10 @@ func TestMySQLReportRepositoryFindSaveAndListByAttendanceRecordID(t *testing.T) 
 		t.Fatalf("expected inserted id 88, got %d", report.ID)
 	}
 
-	rows := sqlmock.NewRows([]string{"id", "attendance_record_id", "report_type", "idempotency_key", "payload_json", "target_url", "report_status", "response_code", "response_body", "reported_at", "retry_count"}).
-		AddRow(uint64(88), uint64(55), "clock_in", report.IdempotencyKey, report.PayloadJSON, report.TargetURL, "pending", nil, "", reportedAt, uint32(1))
+	rows := sqlmock.NewRows([]string{"id", "attendance_record_id", "report_type", "idempotency_key", "payload_json", "target_url", "external_record_id", "delete_record_id", "report_status", "response_code", "response_body", "notification_status", "notification_message_id", "notification_response_code", "notification_response_body", "notification_sent_at", "notification_retry_count", "reported_at", "retry_count"}).
+		AddRow(uint64(88), uint64(55), "clock_in", report.IdempotencyKey, report.PayloadJSON, report.TargetURL, report.ExternalRecordID, report.DeleteRecordID, "pending", nil, "", "pending", "", nil, "", nil, uint32(0), reportedAt, uint32(1))
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, report_status, response_code, response_body, reported_at, retry_count
+		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, external_record_id, delete_record_id, report_status, response_code, response_body, notification_status, notification_message_id, notification_response_code, notification_response_body, notification_sent_at, notification_retry_count, reported_at, retry_count
 		FROM attendance_reports
 		WHERE idempotency_key = ?
 		LIMIT 1
@@ -584,11 +785,17 @@ func TestMySQLReportRepositoryFindSaveAndListByAttendanceRecordID(t *testing.T) 
 	if found == nil || found.ID != 88 {
 		t.Fatalf("unexpected report result: %+v", found)
 	}
+	if found.ExternalRecordID != "flow_001" || found.DeleteRecordID != "flow_old_001" {
+		t.Fatalf("expected report ids to round-trip, got %+v", found)
+	}
+	if found.NotificationStatus != "pending" {
+		t.Fatalf("expected notification status to round-trip, got %+v", found)
+	}
 
-	listRows := sqlmock.NewRows([]string{"id", "attendance_record_id", "report_type", "idempotency_key", "payload_json", "target_url", "report_status", "response_code", "response_body", "reported_at", "retry_count"}).
-		AddRow(uint64(88), uint64(55), "clock_in", report.IdempotencyKey, report.PayloadJSON, report.TargetURL, "pending", nil, "", reportedAt, uint32(1))
+	listRows := sqlmock.NewRows([]string{"id", "attendance_record_id", "report_type", "idempotency_key", "payload_json", "target_url", "external_record_id", "delete_record_id", "report_status", "response_code", "response_body", "notification_status", "notification_message_id", "notification_response_code", "notification_response_body", "notification_sent_at", "notification_retry_count", "reported_at", "retry_count"}).
+		AddRow(uint64(88), uint64(55), "clock_in", report.IdempotencyKey, report.PayloadJSON, report.TargetURL, report.ExternalRecordID, report.DeleteRecordID, "pending", nil, "", "pending", "", nil, "", nil, uint32(0), reportedAt, uint32(1))
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, report_status, response_code, response_body, reported_at, retry_count
+		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, external_record_id, delete_record_id, report_status, response_code, response_body, notification_status, notification_message_id, notification_response_code, notification_response_body, notification_sent_at, notification_retry_count, reported_at, retry_count
 		FROM attendance_reports
 		WHERE attendance_record_id = ?
 		ORDER BY id DESC
@@ -613,10 +820,10 @@ func TestMySQLReportRepositoryHandlesNullTextColumns(t *testing.T) {
 
 	repo := NewMySQLReportRepository(db)
 	reportedAt := mustTime(t, "2026-03-21T09:00:00Z")
-	rows := sqlmock.NewRows([]string{"id", "attendance_record_id", "report_type", "idempotency_key", "payload_json", "target_url", "report_status", "response_code", "response_body", "reported_at", "retry_count"}).
-		AddRow(uint64(88), uint64(55), "clock_in", "attendance-report/employee-42-2026-03-21/clock_in/2026-03-21T08:00:00Z/v2", nil, "http://example.test/report", "pending", nil, nil, reportedAt, uint32(1))
+	rows := sqlmock.NewRows([]string{"id", "attendance_record_id", "report_type", "idempotency_key", "payload_json", "target_url", "external_record_id", "delete_record_id", "report_status", "response_code", "response_body", "notification_status", "notification_message_id", "notification_response_code", "notification_response_body", "notification_sent_at", "notification_retry_count", "reported_at", "retry_count"}).
+		AddRow(uint64(88), uint64(55), "clock_in", "attendance-report/employee-42-2026-03-21/clock_in/2026-03-21T08:00:00Z/v2", nil, "http://example.test/report", nil, nil, "pending", nil, nil, nil, nil, nil, nil, nil, uint32(0), reportedAt, uint32(1))
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, report_status, response_code, response_body, reported_at, retry_count
+		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, external_record_id, delete_record_id, report_status, response_code, response_body, notification_status, notification_message_id, notification_response_code, notification_response_body, notification_sent_at, notification_retry_count, reported_at, retry_count
 		FROM attendance_reports
 		WHERE idempotency_key = ?
 		LIMIT 1
@@ -633,10 +840,10 @@ func TestMySQLReportRepositoryHandlesNullTextColumns(t *testing.T) {
 		t.Fatalf("expected null response_body to become empty string, got %q", found.ResponseBody)
 	}
 
-	listRows := sqlmock.NewRows([]string{"id", "attendance_record_id", "report_type", "idempotency_key", "payload_json", "target_url", "report_status", "response_code", "response_body", "reported_at", "retry_count"}).
-		AddRow(uint64(88), uint64(55), "clock_in", "attendance-report/employee-42-2026-03-21/clock_in/2026-03-21T08:00:00Z/v2", nil, "http://example.test/report", "pending", nil, nil, reportedAt, uint32(1))
+	listRows := sqlmock.NewRows([]string{"id", "attendance_record_id", "report_type", "idempotency_key", "payload_json", "target_url", "external_record_id", "delete_record_id", "report_status", "response_code", "response_body", "notification_status", "notification_message_id", "notification_response_code", "notification_response_body", "notification_sent_at", "notification_retry_count", "reported_at", "retry_count"}).
+		AddRow(uint64(88), uint64(55), "clock_in", "attendance-report/employee-42-2026-03-21/clock_in/2026-03-21T08:00:00Z/v2", nil, "http://example.test/report", nil, nil, "pending", nil, nil, nil, nil, nil, nil, nil, uint32(0), reportedAt, uint32(1))
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, report_status, response_code, response_body, reported_at, retry_count
+		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, external_record_id, delete_record_id, report_status, response_code, response_body, notification_status, notification_message_id, notification_response_code, notification_response_body, notification_sent_at, notification_retry_count, reported_at, retry_count
 		FROM attendance_reports
 		WHERE attendance_record_id = ?
 		ORDER BY id DESC

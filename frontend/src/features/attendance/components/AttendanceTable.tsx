@@ -25,36 +25,6 @@ type AttendanceTableProps = {
   onManualCorrection: (recordId: string) => Promise<void>;
 };
 
-const rowStyle = {
-  display: "grid",
-  gridTemplateColumns:
-    "minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 140px 140px",
-  gap: "0.65rem",
-  alignItems: "stretch",
-};
-
-const cellStyle = {
-  padding: "0.75rem",
-  border: "1px solid rgba(255, 184, 77, 0.1)",
-  background: "rgba(6, 8, 8, 0.65)",
-};
-
-const inputStyle = {
-  width: "100%",
-  padding: "0.55rem 0.65rem",
-  border: "1px solid rgba(255, 184, 77, 0.14)",
-  background: "rgba(7, 9, 9, 0.8)",
-  color: "inherit",
-};
-
-const buttonStyle = {
-  padding: "0.75rem 0.8rem",
-  border: "1px solid rgba(255, 184, 77, 0.24)",
-  background: "rgba(19, 15, 7, 0.92)",
-  color: "inherit",
-  cursor: "pointer",
-};
-
 function getStatusLabel(record: AttendanceRecord): string {
   return `${record.clockInStatus} / ${record.clockOutStatus}`;
 }
@@ -67,16 +37,8 @@ export function AttendanceTable({
   onManualCorrection,
 }: AttendanceTableProps) {
   return (
-    <div style={{ display: "grid", gap: "0.65rem" }}>
-      <div
-        style={{
-          ...rowStyle,
-          color: "#8a928d",
-          fontSize: "0.78rem",
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
-        }}
-      >
+    <div className="attendance-table">
+      <div className="attendance-table__head">
         <span>日期 / 员工</span>
         <span>首次接入</span>
         <span>最后断开</span>
@@ -98,29 +60,27 @@ export function AttendanceTable({
         return (
           <div
             key={record.id}
+            className={`attendance-row${isActionable ? " attendance-row--attention" : ""}`}
             role="group"
             aria-label={`${record.employeeName} 考勤记录`}
-            style={rowStyle}
           >
-            <div style={cellStyle}>
+            <div className="attendance-cell attendance-cell--identity">
               <strong>{record.attendanceDate}</strong>
-              <div style={{ color: "#8a928d", marginTop: "0.2rem" }}>
-                {record.employeeName}
-              </div>
+              <div className="attendance-cell__subtext">{record.employeeName}</div>
             </div>
 
-            <div style={cellStyle}>
+            <div className="attendance-cell">
               {isActionable ? (
-                <label style={{ display: "grid", gap: "0.25rem" }}>
-                  <span>{`${record.employeeName} 首次接入`}</span>
+                <label className="form-field">
+                  <span className="form-field__label">{`${record.employeeName} 首次接入`}</span>
                   <input
+                    className="form-field__control form-field__control--compact"
                     aria-label="首次接入"
                     type="text"
                     value={draft.firstConnectAt}
                     onChange={(event) =>
                       onDraftChange(record.id, "firstConnectAt", event.target.value)
                     }
-                    style={inputStyle}
                   />
                 </label>
               ) : (
@@ -128,18 +88,18 @@ export function AttendanceTable({
               )}
             </div>
 
-            <div style={cellStyle}>
+            <div className="attendance-cell">
               {isActionable ? (
-                <label style={{ display: "grid", gap: "0.25rem" }}>
-                  <span>{`${record.employeeName} 最后断开`}</span>
+                <label className="form-field">
+                  <span className="form-field__label">{`${record.employeeName} 最后断开`}</span>
                   <input
+                    className="form-field__control form-field__control--compact"
                     aria-label="最后断开"
                     type="text"
                     value={draft.lastDisconnectAt}
                     onChange={(event) =>
                       onDraftChange(record.id, "lastDisconnectAt", event.target.value)
                     }
-                    style={inputStyle}
                   />
                 </label>
               ) : (
@@ -147,21 +107,17 @@ export function AttendanceTable({
               )}
             </div>
 
-            <div style={cellStyle}>{getStatusLabel(record)}</div>
+            <div className="attendance-cell">{getStatusLabel(record)}</div>
+            <div className="attendance-cell">{attentionReason ?? "无异常"}</div>
+            <div className="attendance-cell">{record.sourceMode}</div>
 
-            <div style={cellStyle}>
-              {attentionReason ?? "无异常"}
-            </div>
-
-            <div style={cellStyle}>{record.sourceMode}</div>
-
-            <div style={cellStyle}>
+            <div className="attendance-cell">
               {isActionable ? (
                 <button
                   type="button"
                   onClick={() => void onManualCorrection(record.id)}
                   disabled={isPending}
-                  style={buttonStyle}
+                  className="button button--primary button--small"
                 >
                   {isPending ? "提交中..." : "提交修正"}
                 </button>

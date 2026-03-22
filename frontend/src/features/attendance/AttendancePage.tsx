@@ -45,12 +45,18 @@ export function AttendancePage() {
           return;
         }
 
-        const employeeMap = new Map(employees.map((employee) => [employee.id, employee]));
-        const nextRecords = attendance.map((record) => toAttendanceRow(record, employeeMap));
+        const employeeMap = new Map(
+          employees.map((employee) => [employee.id, employee]),
+        );
+        const nextRecords = attendance.map((record) =>
+          toAttendanceRow(record, employeeMap),
+        );
 
         setRecords(nextRecords);
         setDrafts(
-          Object.fromEntries(nextRecords.map((record) => [record.id, createDraft(record)])),
+          Object.fromEntries(
+            nextRecords.map((record) => [record.id, createDraft(record)]),
+          ),
         );
         setQueueMessage(`已同步 ${attendance.length} 条考勤记录`);
       } catch {
@@ -71,7 +77,9 @@ export function AttendancePage() {
       (record) =>
         record.clockOutStatus === "pending" || record.clockOutStatus === "missing",
     ).length;
-    const manualCount = records.filter((record) => record.sourceMode === "manual").length;
+    const manualCount = records.filter(
+      (record) => record.sourceMode === "manual",
+    ).length;
 
     return [
       { label: "已记录上班", value: `${clockInCount}` },
@@ -79,8 +87,27 @@ export function AttendancePage() {
       { label: "人工修正", value: `${manualCount}` },
     ];
   }, [records]);
+  const attentionRecords = useMemo(
+    () =>
+      records.filter(
+        (record) =>
+          record.exceptionStatus !== "none" ||
+          record.clockInStatus === "pending" ||
+          record.clockOutStatus === "pending" ||
+          record.clockOutStatus === "missing",
+      ),
+    [records],
+  );
+  const normalRecords = useMemo(
+    () => records.filter((record) => !attentionRecords.some((item) => item.id === record.id)),
+    [attentionRecords, records],
+  );
 
-  function updateDraft(recordId: string, field: keyof AttendanceDraft, value: string) {
+  function updateDraft(
+    recordId: string,
+    field: keyof AttendanceDraft,
+    value: string,
+  ) {
     setDrafts((current) => ({
       ...current,
       [recordId]: {
@@ -93,7 +120,10 @@ export function AttendancePage() {
   async function handleManualCorrection(recordId: string) {
     setPendingId(recordId);
 
-    const draft = drafts[recordId] ?? { firstConnectAt: "", lastDisconnectAt: "" };
+    const draft = drafts[recordId] ?? {
+      firstConnectAt: "",
+      lastDisconnectAt: "",
+    };
 
     try {
       const result = await correctAttendanceRecord(recordId, {
@@ -104,7 +134,10 @@ export function AttendancePage() {
       setRecords((current) =>
         current.map((record) =>
           record.id === result.attendance.id
-            ? toAttendanceRow(result.attendance, currentEmployeeMapFromRows(current))
+            ? toAttendanceRow(
+                result.attendance,
+                currentEmployeeMapFromRows(current),
+              )
             : record,
         ),
       );
@@ -123,10 +156,10 @@ export function AttendancePage() {
   return (
     <section className="page">
       <header className="page-header">
-        <span className="page-header__eyebrow">Shift Control</span>
+        <span className="page-header__eyebrow">异常复核</span>
         <div>
-          <h2>Attendance</h2>
-          <p>真实考勤记录与员工档案联动，支持人工修正提交。</p>
+          <h2>考勤复核</h2>
+          <p>聚焦待处理考勤与人工修正，保持异常优先、动作明确的复核工作流。</p>
         </div>
       </header>
 
@@ -148,21 +181,44 @@ export function AttendancePage() {
 
         <article className="panel panel--tall">
           <div className="panel__header">
-            <h3>考勤队列</h3>
-            <span>主管复核</span>
+            <h3>待处理队列</h3>
+            <span>{attentionRecords.length} 条</span>
           </div>
           <p className="panel__copy">{queueMessage}</p>
-          <div style={{ marginTop: "1rem" }}>
-            <AttendanceTable
-              drafts={drafts}
-              pendingId={pendingId}
-              records={records}
-              onDraftChange={updateDraft}
-              onManualCorrection={handleManualCorrection}
-            />
+          <div className="panel__body-offset">
+            {attentionRecords.length > 0 ? (
+              <AttendanceTable
+                drafts={drafts}
+                pendingId={pendingId}
+                records={attentionRecords}
+                onDraftChange={updateDraft}
+                onManualCorrection={handleManualCorrection}
+              />
+            ) : (
+              <p className="panel__copy">当前没有待处理考勤，下面仍保留完整记录以便核对。</p>
+            )}
           </div>
         </article>
       </div>
+
+      <article className="panel panel--tall">
+        <div className="panel__header">
+          <h3>全部记录</h3>
+          <span>{records.length} 条</span>
+        </div>
+        <p className="panel__copy">
+          保留完整记录区，便于主管在处理待办后继续核对已经稳定的考勤结果。
+        </p>
+        <div className="panel__body-offset">
+          <AttendanceTable
+            drafts={drafts}
+            pendingId={pendingId}
+            records={normalRecords.length > 0 ? normalRecords : records}
+            onDraftChange={updateDraft}
+            onManualCorrection={handleManualCorrection}
+          />
+        </div>
+      </article>
     </section>
   );
 }
@@ -175,6 +231,7 @@ function currentEmployeeMapFromRows(records: AttendanceRow[]): Map<string, Emplo
         id: record.employeeId,
         employeeNo: "",
         systemNo: "",
+        feishuEmployeeId: "",
         name: record.employeeName,
         status: "active",
         devices: [],

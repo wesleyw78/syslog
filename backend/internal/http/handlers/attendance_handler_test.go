@@ -78,6 +78,20 @@ func (f *fakeClientEventRepo) ListRecent(context.Context, int) ([]domain.ClientE
 	return append([]domain.ClientEvent(nil), f.events...), nil
 }
 
+type fakeLogQueryRepo struct {
+	items []repository.LogListItem
+}
+
+func (f *fakeLogQueryRepo) ListPage(context.Context, repository.LogListParams) (repository.LogListResult, error) {
+	return repository.LogListResult{
+		Items:      append([]repository.LogListItem(nil), f.items...),
+		Page:       1,
+		PageSize:   10,
+		TotalItems: len(f.items),
+		TotalPages: 1,
+	}, nil
+}
+
 type fakeAttendanceRepo struct {
 	records []domain.AttendanceRecord
 }
@@ -137,6 +151,14 @@ func TestAdminRoutesReturnRealJSON(t *testing.T) {
 		ClientEvents: &fakeClientEventRepo{
 			events: []domain.ClientEvent{
 				{ID: 21, SyslogMessageID: 11, EventType: "connect", StationMac: "aa:bb:cc:dd:ee:ff", MatchStatus: "matched"},
+			},
+		},
+		Logs: &fakeLogQueryRepo{
+			items: []repository.LogListItem{
+				{
+					Message: domain.SyslogMessage{ID: 11, RawMessage: "connect payload", ParseStatus: "parsed"},
+					Event:   &domain.ClientEvent{ID: 21, SyslogMessageID: 11, EventType: "connect", StationMac: "aa:bb:cc:dd:ee:ff", MatchStatus: "matched"},
+				},
 			},
 		},
 		Attendance: &fakeAttendanceRepo{

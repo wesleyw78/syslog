@@ -4,6 +4,7 @@ import { createBrowserRouter } from "react-router-dom";
 import { AppShell } from "./layout/AppShell";
 import { AttendancePage } from "../features/attendance/AttendancePage";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
+import { DebugPage } from "../features/debug/DebugPage";
 import { EmployeesPage } from "../features/employees/EmployeesPage";
 import { LogsPage } from "../features/logs/LogsPage";
 import { SettingsPage } from "../features/settings/SettingsPage";
@@ -32,6 +33,10 @@ export const appRoutes: RouteObject[] = [
       {
         path: "settings",
         element: <SettingsPage />,
+      },
+      {
+        path: "debug",
+        element: <DebugPage />,
       },
     ],
   },

@@ -4,7 +4,7 @@ set -euo pipefail
 
 MODE="${1:-both}"
 HOST="${SYSLOG_HOST:-127.0.0.1}"
-PORT="${SYSLOG_PORT:-5514}"
+PORT="${SYSLOG_PORT:-514}"
 
 CONNECT_SAMPLE='Mar 21 08:01:00 stamgr: Mef85d2S4D0 client_footprints connect Station[94:89:78:55:9a:f3] AP[28:b3:71:25:ae:a0] ssid[FactoryOps] osvendor[Unknown] hostname[scanner-01]'
 DISCONNECT_SAMPLE='Mar 21 18:05:00 stamgr: Mef85d2S4D0 client_footprints disconnect Station[94:89:78:55:9a:f3] AP[28:b3:71:25:ae:a0] ssid[FactoryOps] osvendor[Unknown] hostname[scanner-01]'

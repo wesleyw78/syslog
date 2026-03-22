@@ -147,3 +147,18 @@ func TestMigrationSQLIsIdempotent(t *testing.T) {
 		}
 	}
 }
+
+func TestMigrationAddsSyslogRuleSortOrderBeforeSeedInsert(t *testing.T) {
+	sql := schema.SQL()
+	alterIdx := strings.Index(sql, "ALTER TABLE syslog_receive_rules ADD COLUMN sort_order")
+	insertIdx := strings.Index(sql, "INSERT IGNORE INTO syslog_receive_rules")
+	if alterIdx == -1 {
+		t.Fatalf("expected migration sql to add syslog rule sort_order column")
+	}
+	if insertIdx == -1 {
+		t.Fatalf("expected migration sql to seed syslog rules")
+	}
+	if alterIdx > insertIdx {
+		t.Fatalf("expected syslog rule sort_order migration to run before seed insert")
+	}
+}

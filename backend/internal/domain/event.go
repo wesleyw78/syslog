@@ -10,6 +10,8 @@ type SyslogMessage struct {
 	SourceIP          string
 	Protocol          string
 	ParseStatus       string
+	MatchedRuleID     *uint64
+	MatchedRuleName   string
 	RetentionExpireAt time.Time
 }
 

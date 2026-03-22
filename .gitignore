@@ -1,0 +1,31 @@
+# OS / editor noise
+.DS_Store
+.idea/
+.vscode/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Local agent / tooling state
+.serena/
+.superpowers/
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+frontend/*.tsbuildinfo
+
+# Backend / Go build output
+backend/bin/
+backend/coverage.out
+backend/*.test
+
+# Generic logs and temp files
+*.log
+*.out
+*.tmp
+tmp/

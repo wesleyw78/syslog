@@ -10,8 +10,11 @@ func TestLoadConfigDefaults(t *testing.T) {
 	if cfg.SyslogRetentionDays != 30 {
 		t.Fatalf("expected retention 30, got %d", cfg.SyslogRetentionDays)
 	}
-	if cfg.MySQLHost != "mysql" {
-		t.Fatalf("expected default mysql host mysql, got %s", cfg.MySQLHost)
+	if cfg.SyslogUDPAddr != ":1514" {
+		t.Fatalf("expected default syslog udp addr :1514, got %s", cfg.SyslogUDPAddr)
+	}
+	if cfg.MySQLHost != "127.0.0.1" {
+		t.Fatalf("expected default mysql host 127.0.0.1, got %s", cfg.MySQLHost)
 	}
 	if cfg.MySQLPort != 3306 {
 		t.Fatalf("expected default mysql port 3306, got %d", cfg.MySQLPort)
@@ -36,6 +39,7 @@ func TestLoadConfigDefaults(t *testing.T) {
 func TestLoadConfigFromEnvOverrides(t *testing.T) {
 	values := map[string]string{
 		"SYSLOG_RETENTION_DAYS": "7",
+		"SYSLOG_UDP_ADDR":       ":514",
 		"MYSQL_HOST":            "127.0.0.1",
 		"MYSQL_PORT":            "3307",
 		"MYSQL_USER":            "reader",
@@ -53,6 +57,9 @@ func TestLoadConfigFromEnvOverrides(t *testing.T) {
 	}
 	if cfg.SyslogRetentionDays != 7 {
 		t.Fatalf("expected overridden retention 7, got %d", cfg.SyslogRetentionDays)
+	}
+	if cfg.SyslogUDPAddr != ":514" {
+		t.Fatalf("expected overridden udp addr :514, got %s", cfg.SyslogUDPAddr)
 	}
 	if cfg.MySQLHost != "127.0.0.1" {
 		t.Fatalf("expected overridden mysql host 127.0.0.1, got %s", cfg.MySQLHost)

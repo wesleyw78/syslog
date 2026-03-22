@@ -133,7 +133,7 @@ describe("dashboard page", () => {
       },
       {
         method: "GET",
-        path: "/api/logs",
+        path: "/api/logs?page=1",
         response: {
           items: [
             {
@@ -167,6 +167,12 @@ describe("dashboard page", () => {
               },
             },
           ],
+          pagination: {
+            page: 1,
+            pageSize: 10,
+            totalItems: 2,
+            totalPages: 1,
+          },
         },
       },
     ]);
@@ -176,26 +182,44 @@ describe("dashboard page", () => {
     await waitFor(() => {
       const totalCard = screen.getByText("员工总数").closest("article");
       expect(totalCard).not.toBeNull();
-      expect(within(totalCard as HTMLElement).getByText("5")).toBeInTheDocument();
+      expect(
+        within(totalCard as HTMLElement).getByText("5"),
+      ).toBeInTheDocument();
     });
 
-    const totalCard = screen.getByText("员工总数").closest("article");
-    const activeCard = screen.getByText("在岗员工").closest("article");
-    const exceptionCard = screen.getByText("待处理考勤").closest("article");
-    const logCard = screen.getByText("最近日志").closest("article");
+    const metricCards = Array.from(document.querySelectorAll(".metric-card"));
+    const totalCard = metricCards.find((card) => within(card as HTMLElement).queryByText("员工总数")) ?? null;
+    const activeCard = metricCards.find((card) => within(card as HTMLElement).queryByText("在岗员工")) ?? null;
+    const exceptionCard =
+      metricCards.find((card) => within(card as HTMLElement).queryByText("待处理考勤")) ?? null;
+    const logCard = metricCards.find((card) => within(card as HTMLElement).queryByText("日志接入")) ?? null;
 
     expect(totalCard).not.toBeNull();
     expect(activeCard).not.toBeNull();
     expect(exceptionCard).not.toBeNull();
     expect(logCard).not.toBeNull();
     expect(within(totalCard as HTMLElement).getByText("5")).toBeInTheDocument();
-    expect(within(activeCard as HTMLElement).getByText("4")).toBeInTheDocument();
-    expect(within(exceptionCard as HTMLElement).getByText("2")).toBeInTheDocument();
+    expect(
+      within(activeCard as HTMLElement).getByText("4"),
+    ).toBeInTheDocument();
+    expect(
+      within(exceptionCard as HTMLElement).getByText("2"),
+    ).toBeInTheDocument();
     expect(within(logCard as HTMLElement).getByText("2")).toBeInTheDocument();
-    expect(screen.getByText(/gate-1 access granted/)).toBeInTheDocument();
-    expect(screen.getByText(/Arjun Patel/)).toBeInTheDocument();
-    expect(screen.getByText(/Omar Reed 2026-03-21 clock_in_pending/)).toBeInTheDocument();
-    expect(screen.queryByText(/Nora King 2026-03-21 none/)).not.toBeInTheDocument();
+    expect(screen.getByText(/attendance\.sync · AA:BB:CC:DD:EE:02/)).toBeInTheDocument();
+    expect(screen.getByText(/retry after timeout/)).toBeInTheDocument();
+    const attentionPanel = screen.getByRole("heading", { name: "待处理考勤" }).closest("article");
+    expect(attentionPanel).not.toBeNull();
+    expect(
+      within(attentionPanel as HTMLElement).getByText(/Arjun Patel 2026-03-21/),
+    ).toBeInTheDocument();
+    expect(
+      within(attentionPanel as HTMLElement).getByText(/Omar Reed 2026-03-21/),
+    ).toBeInTheDocument();
+    expect(attentionPanel).toHaveTextContent("等待确认上班记录");
+    expect(
+      screen.queryByText(/Nora King 2026-03-21 none/),
+    ).not.toBeInTheDocument();
     expect(fetchMock.mock.calls).toHaveLength(3);
     assertAllMatched();
   });

@@ -49,13 +49,13 @@ func TestNewLoadsConfigOpensDBRunsMigrationAndAssemblesApp(t *testing.T) {
 	if app.Location == nil || app.Location.String() != "Asia/Shanghai" {
 		t.Fatalf("expected asia/shanghai location, got %+v", app.Location)
 	}
-	if app.Repositories.Employees == nil || app.Repositories.SyslogMessages == nil || app.Repositories.ClientEvents == nil || app.Repositories.Attendance == nil || app.Repositories.Reports == nil || app.Repositories.Settings == nil {
+	if app.Repositories.Employees == nil || app.Repositories.SyslogMessages == nil || app.Repositories.ClientEvents == nil || app.Repositories.Attendance == nil || app.Repositories.Reports == nil || app.Repositories.Settings == nil || app.Repositories.SyslogRules == nil {
 		t.Fatalf("expected repositories to be assembled, got %+v", app.Repositories)
 	}
 	if app.Services.SyslogPipeline == nil {
 		t.Fatalf("expected syslog pipeline service to be assembled")
 	}
-	if app.Services.EmployeeAdmin == nil || app.Services.SettingsAdmin == nil || app.Services.AttendanceAdmin == nil {
+	if app.Services.EmployeeAdmin == nil || app.Services.SettingsAdmin == nil || app.Services.SyslogRuleAdmin == nil || app.Services.AttendanceAdmin == nil {
 		t.Fatalf("expected admin services to be assembled, got %+v", app.Services)
 	}
 

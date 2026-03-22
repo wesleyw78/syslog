@@ -25,11 +25,12 @@ type EmployeeDeviceInput struct {
 }
 
 type EmployeeWriteInput struct {
-	EmployeeNo string
-	SystemNo   string
-	Name       string
-	Status     string
-	Devices    []EmployeeDeviceInput
+	EmployeeNo       string
+	SystemNo         string
+	FeishuEmployeeID string
+	Name             string
+	Status           string
+	Devices          []EmployeeDeviceInput
 }
 
 type EmployeeAdminService struct {
@@ -140,6 +141,7 @@ func (s *EmployeeAdminService) saveEmployee(ctx context.Context, id uint64, inpu
 func normalizeEmployeeInput(id uint64, input EmployeeWriteInput) (domain.Employee, []domain.EmployeeDevice, error) {
 	employeeNo := strings.TrimSpace(input.EmployeeNo)
 	systemNo := strings.TrimSpace(input.SystemNo)
+	feishuEmployeeID := strings.TrimSpace(input.FeishuEmployeeID)
 	name := strings.TrimSpace(input.Name)
 	status := strings.TrimSpace(input.Status)
 	if status == "" {
@@ -154,6 +156,9 @@ func normalizeEmployeeInput(id uint64, input EmployeeWriteInput) (domain.Employe
 	}
 	if name == "" {
 		return domain.Employee{}, nil, fmt.Errorf("%w: name is required", ErrInvalidEmployeeInput)
+	}
+	if feishuEmployeeID == "" {
+		return domain.Employee{}, nil, fmt.Errorf("%w: feishuEmployeeId is required", ErrInvalidEmployeeInput)
 	}
 
 	seen := make(map[string]struct{}, len(input.Devices))
@@ -182,11 +187,12 @@ func normalizeEmployeeInput(id uint64, input EmployeeWriteInput) (domain.Employe
 	}
 
 	employee := domain.Employee{
-		ID:         id,
-		EmployeeNo: employeeNo,
-		SystemNo:   systemNo,
-		Name:       name,
-		Status:     status,
+		ID:               id,
+		EmployeeNo:       employeeNo,
+		SystemNo:         systemNo,
+		FeishuEmployeeID: feishuEmployeeID,
+		Name:             name,
+		Status:           status,
 	}
 
 	return employee, devices, nil
@@ -362,11 +368,6 @@ func (s *AttendanceAdminService) CorrectAttendance(ctx context.Context, attendan
 		return &AttendanceCorrectionResult{Record: *record}, nil
 	}
 
-	targetURL, err := s.reportTargetURL(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	if s.db == nil {
 		return nil, errors.New("database is required")
 	}
@@ -414,14 +415,20 @@ func (s *AttendanceAdminService) CorrectAttendance(ctx context.Context, attendan
 	}
 
 	reports := make([]domain.AttendanceReport, 0, 2)
-	if report, ok := s.correctionReportForField(*record, "clock_in", originalFirst, input.FirstConnectAt, targetURL); ok {
+	if report, ok, err := s.correctionReportForField(ctx, *record, "clock_in", originalFirst, input.FirstConnectAt); err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	} else if ok {
 		reports = append(reports, *report)
 		if err := reportTx.WithTx(tx).Save(ctx, report); err != nil {
 			_ = tx.Rollback()
 			return nil, err
 		}
 	}
-	if report, ok := s.correctionReportForField(*record, "clock_out", originalLast, input.LastDisconnectAt, targetURL); ok {
+	if report, ok, err := s.correctionReportForField(ctx, *record, "clock_out", originalLast, input.LastDisconnectAt); err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	} else if ok {
 		reports = append(reports, *report)
 		if err := reportTx.WithTx(tx).Save(ctx, report); err != nil {
 			_ = tx.Rollback()
@@ -436,25 +443,6 @@ func (s *AttendanceAdminService) CorrectAttendance(ctx context.Context, attendan
 	return &AttendanceCorrectionResult{Record: *record, Reports: reports}, nil
 }
 
-func (s *AttendanceAdminService) reportTargetURL(ctx context.Context) (string, error) {
-	if s.settingsRepo == nil {
-		return "", nil
-	}
-
-	setting, err := s.settingsRepo.GetByKey(ctx, reportTargetURLSettingKey)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", nil
-		}
-		return "", err
-	}
-	if setting == nil {
-		return "", nil
-	}
-
-	return strings.TrimSpace(setting.SettingValue), nil
-}
-
 func normalizeMACAddress(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
@@ -467,24 +455,54 @@ func timePointerEqual(a, b *time.Time) bool {
 	return a.Equal(*b)
 }
 
-func (s *AttendanceAdminService) correctionReportForField(record domain.AttendanceRecord, reportType string, original *time.Time, input OptionalTimeField, targetURL string) (*domain.AttendanceReport, bool) {
+func (s *AttendanceAdminService) correctionReportForField(ctx context.Context, record domain.AttendanceRecord, reportType string, original *time.Time, input OptionalTimeField) (*domain.AttendanceReport, bool, error) {
 	if !input.Provided {
-		return nil, false
+		return nil, false, nil
 	}
 
 	if input.Valid {
 		if input.Value == nil || timePointerEqual(original, input.Value) {
-			return nil, false
+			return nil, false, nil
 		}
 
-		report := s.reportSvc.CreatePendingReport(record, reportType, *input.Value, targetURL)
-		return &report, true
+		report := s.reportSvc.CreatePendingReport(record, reportType, *input.Value)
+		if err := s.attachDeleteRecordID(ctx, &report); err != nil {
+			return nil, false, err
+		}
+		return &report, true, nil
 	}
 
 	if original == nil {
-		return nil, false
+		return nil, false, nil
 	}
 
-	report := s.reportSvc.CreateClearReport(record, reportType, targetURL)
-	return &report, true
+	report := s.reportSvc.CreateClearReport(record, reportType)
+	if err := s.attachDeleteRecordID(ctx, &report); err != nil {
+		return nil, false, err
+	}
+	return &report, true, nil
+}
+
+func (s *AttendanceAdminService) attachDeleteRecordID(ctx context.Context, report *domain.AttendanceReport) error {
+	return copyLatestDeleteRecordID(ctx, s.reportRepo, report)
+}
+
+func copyLatestDeleteRecordID(ctx context.Context, reportRepo repository.ReportRepository, report *domain.AttendanceReport) error {
+	if report == nil || reportRepo == nil {
+		return nil
+	}
+
+	previous, err := reportRepo.FindLatestSuccessfulByAttendanceRecordAndType(ctx, report.AttendanceRecordID, report.ReportType)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	if previous == nil {
+		return nil
+	}
+
+	report.DeleteRecordID = strings.TrimSpace(previous.ExternalRecordID)
+	return nil
 }

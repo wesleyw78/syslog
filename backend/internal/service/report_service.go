@@ -8,7 +8,11 @@ import (
 	"syslog/internal/domain"
 )
 
-const pendingReportStatus = "pending"
+const (
+	pendingReportStatus       = "pending"
+	pendingNotificationStatus = "pending"
+	skippedNotificationStatus = "skipped"
+)
 
 type ReportService struct{}
 
@@ -36,7 +40,7 @@ func (s *ReportService) BuildIdempotencyKey(record domain.AttendanceRecord, repo
 	)
 }
 
-func (s *ReportService) CreatePendingReport(record domain.AttendanceRecord, reportType string, relevantTime time.Time, targetURL string) domain.AttendanceReport {
+func (s *ReportService) CreatePendingReport(record domain.AttendanceRecord, reportType string, relevantTime time.Time) domain.AttendanceReport {
 	timestamp := relevantTime.UTC().Format(time.RFC3339)
 	payloadJSON, _ := json.Marshal(attendanceReportPayload{
 		AttendanceRecordID: record.ID,
@@ -52,12 +56,22 @@ func (s *ReportService) CreatePendingReport(record domain.AttendanceRecord, repo
 		ReportType:         reportType,
 		IdempotencyKey:     s.BuildIdempotencyKey(record, reportType, relevantTime),
 		PayloadJSON:        string(payloadJSON),
-		TargetURL:          targetURL,
 		ReportStatus:       pendingReportStatus,
+		NotificationStatus: pendingNotificationStatus,
 	}
 }
 
-func (s *ReportService) CreateClearReport(record domain.AttendanceRecord, reportType string, targetURL string) domain.AttendanceReport {
+func (s *ReportService) CreateManualPendingReport(record domain.AttendanceRecord, reportType string, relevantTime time.Time, requestedAt time.Time) domain.AttendanceReport {
+	report := s.CreatePendingReport(record, reportType, relevantTime)
+	report.IdempotencyKey = fmt.Sprintf(
+		"%s/manual/%s",
+		report.IdempotencyKey,
+		requestedAt.UTC().Format(time.RFC3339Nano),
+	)
+	return report
+}
+
+func (s *ReportService) CreateClearReport(record domain.AttendanceRecord, reportType string) domain.AttendanceReport {
 	payloadJSON, _ := json.Marshal(attendanceReportPayload{
 		AttendanceRecordID: record.ID,
 		EmployeeID:         record.EmployeeID,
@@ -73,8 +87,8 @@ func (s *ReportService) CreateClearReport(record domain.AttendanceRecord, report
 		ReportType:         reportType,
 		IdempotencyKey:     fmt.Sprintf("attendance-report/%s/%s/clear/v%d", attendanceIdentity(record), reportType, record.Version),
 		PayloadJSON:        string(payloadJSON),
-		TargetURL:          targetURL,
 		ReportStatus:       pendingReportStatus,
+		NotificationStatus: skippedNotificationStatus,
 	}
 }
 

@@ -44,8 +44,7 @@ func TestAttendanceAdminServiceCorrectAttendancePersistsRecordAndPendingReports(
 
 	attendanceRepo := repository.NewMySQLAttendanceRepository(db)
 	reportRepo := repository.NewMySQLReportRepository(db)
-	settingsRepo := &fakeAttendanceSettingsRepo{targetURL: "http://example.test/report"}
-	service := NewAttendanceAdminService(db, attendanceRepo, reportRepo, settingsRepo, NewReportService())
+	service := NewAttendanceAdminService(db, attendanceRepo, reportRepo, nil, NewReportService())
 
 	loc := time.FixedZone("CST", 8*3600)
 	attendanceDate := time.Date(2026, 3, 21, 0, 0, 0, 0, loc)
@@ -91,6 +90,18 @@ func TestAttendanceAdminServiceCorrectAttendancePersistsRecordAndPendingReports(
 	`))).
 		WithArgs(int64(42), attendanceDate, newFirst, newLast, "done", "done", "none", "manual", int64(3), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(int64(recordID), 1))
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, external_record_id, delete_record_id, report_status, response_code, response_body, notification_status, notification_message_id, notification_response_code, notification_response_body, notification_sent_at, notification_retry_count, reported_at, retry_count
+		FROM attendance_reports
+		WHERE attendance_record_id = ?
+		  AND report_type = ?
+		  AND report_status = 'success'
+		  AND external_record_id <> ''
+		ORDER BY id DESC
+		LIMIT 1
+	`))).
+		WithArgs(int64(recordID), "clock_in").
+		WillReturnError(sql.ErrNoRows)
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		INSERT INTO attendance_reports (
 			attendance_record_id,
@@ -98,26 +109,54 @@ func TestAttendanceAdminServiceCorrectAttendancePersistsRecordAndPendingReports(
 			idempotency_key,
 			payload_json,
 			target_url,
+			external_record_id,
+			delete_record_id,
 			report_status,
 			response_code,
 			response_body,
+			notification_status,
+			notification_message_id,
+			notification_response_code,
+			notification_response_body,
+			notification_sent_at,
+			notification_retry_count,
 			reported_at,
 			retry_count
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
 			id = LAST_INSERT_ID(id),
 			attendance_record_id = VALUES(attendance_record_id),
 			report_type = VALUES(report_type),
 			payload_json = VALUES(payload_json),
 			target_url = VALUES(target_url),
+			external_record_id = VALUES(external_record_id),
+			delete_record_id = VALUES(delete_record_id),
 			report_status = VALUES(report_status),
 			response_code = VALUES(response_code),
 			response_body = VALUES(response_body),
+			notification_status = VALUES(notification_status),
+			notification_message_id = VALUES(notification_message_id),
+			notification_response_code = VALUES(notification_response_code),
+			notification_response_body = VALUES(notification_response_body),
+			notification_sent_at = VALUES(notification_sent_at),
+			notification_retry_count = VALUES(notification_retry_count),
 			reported_at = VALUES(reported_at),
 			retry_count = VALUES(retry_count)
 	`))).
-		WithArgs(int64(recordID), "clock_in", sqlmock.AnyArg(), sqlmock.AnyArg(), "http://example.test/report", "pending", nil, "", nil, int64(0)).
+		WithArgs(int64(recordID), "clock_in", sqlmock.AnyArg(), sqlmock.AnyArg(), "", "", "", "pending", nil, "", "pending", "", nil, "", nil, int64(0), nil, int64(0)).
 		WillReturnResult(sqlmock.NewResult(81, 1))
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, external_record_id, delete_record_id, report_status, response_code, response_body, notification_status, notification_message_id, notification_response_code, notification_response_body, notification_sent_at, notification_retry_count, reported_at, retry_count
+		FROM attendance_reports
+		WHERE attendance_record_id = ?
+		  AND report_type = ?
+		  AND report_status = 'success'
+		  AND external_record_id <> ''
+		ORDER BY id DESC
+		LIMIT 1
+	`))).
+		WithArgs(int64(recordID), "clock_out").
+		WillReturnError(sql.ErrNoRows)
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		INSERT INTO attendance_reports (
 			attendance_record_id,
@@ -125,25 +164,41 @@ func TestAttendanceAdminServiceCorrectAttendancePersistsRecordAndPendingReports(
 			idempotency_key,
 			payload_json,
 			target_url,
+			external_record_id,
+			delete_record_id,
 			report_status,
 			response_code,
 			response_body,
+			notification_status,
+			notification_message_id,
+			notification_response_code,
+			notification_response_body,
+			notification_sent_at,
+			notification_retry_count,
 			reported_at,
 			retry_count
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
 			id = LAST_INSERT_ID(id),
 			attendance_record_id = VALUES(attendance_record_id),
 			report_type = VALUES(report_type),
 			payload_json = VALUES(payload_json),
 			target_url = VALUES(target_url),
+			external_record_id = VALUES(external_record_id),
+			delete_record_id = VALUES(delete_record_id),
 			report_status = VALUES(report_status),
 			response_code = VALUES(response_code),
 			response_body = VALUES(response_body),
+			notification_status = VALUES(notification_status),
+			notification_message_id = VALUES(notification_message_id),
+			notification_response_code = VALUES(notification_response_code),
+			notification_response_body = VALUES(notification_response_body),
+			notification_sent_at = VALUES(notification_sent_at),
+			notification_retry_count = VALUES(notification_retry_count),
 			reported_at = VALUES(reported_at),
 			retry_count = VALUES(retry_count)
 	`))).
-		WithArgs(int64(recordID), "clock_out", sqlmock.AnyArg(), sqlmock.AnyArg(), "http://example.test/report", "pending", nil, "", nil, int64(0)).
+		WithArgs(int64(recordID), "clock_out", sqlmock.AnyArg(), sqlmock.AnyArg(), "", "", "", "pending", nil, "", "pending", "", nil, "", nil, int64(0), nil, int64(0)).
 		WillReturnResult(sqlmock.NewResult(82, 1))
 	mock.ExpectCommit()
 
@@ -172,10 +227,6 @@ func TestAttendanceAdminServiceCorrectAttendancePersistsRecordAndPendingReports(
 	if result.Reports[0].ReportStatus != "pending" || result.Reports[1].ReportStatus != "pending" {
 		t.Fatalf("expected pending reports, got %+v", result.Reports)
 	}
-	if len(settingsRepo.keys) != 1 || settingsRepo.keys[0] != reportTargetURLSettingKey {
-		t.Fatalf("expected report target lookup, got %+v", settingsRepo.keys)
-	}
-
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("expected all sql expectations to be met, got %v", err)
 	}
@@ -190,8 +241,7 @@ func TestAttendanceAdminServiceCorrectAttendanceKeepsExistingLastDisconnectWhenO
 
 	attendanceRepo := repository.NewMySQLAttendanceRepository(db)
 	reportRepo := repository.NewMySQLReportRepository(db)
-	settingsRepo := &fakeAttendanceSettingsRepo{targetURL: "http://example.test/report"}
-	service := NewAttendanceAdminService(db, attendanceRepo, reportRepo, settingsRepo, NewReportService())
+	service := NewAttendanceAdminService(db, attendanceRepo, reportRepo, nil, NewReportService())
 
 	loc := time.FixedZone("CST", 8*3600)
 	attendanceDate := time.Date(2026, 3, 21, 0, 0, 0, 0, loc)
@@ -235,6 +285,18 @@ func TestAttendanceAdminServiceCorrectAttendanceKeepsExistingLastDisconnectWhenO
 	`))).
 		WithArgs(int64(42), attendanceDate, newFirst, existingLast, "done", "done", "none", "manual", int64(3), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(int64(recordID), 1))
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, external_record_id, delete_record_id, report_status, response_code, response_body, notification_status, notification_message_id, notification_response_code, notification_response_body, notification_sent_at, notification_retry_count, reported_at, retry_count
+		FROM attendance_reports
+		WHERE attendance_record_id = ?
+		  AND report_type = ?
+		  AND report_status = 'success'
+		  AND external_record_id <> ''
+		ORDER BY id DESC
+		LIMIT 1
+	`))).
+		WithArgs(int64(recordID), "clock_in").
+		WillReturnError(sql.ErrNoRows)
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		INSERT INTO attendance_reports (
 			attendance_record_id,
@@ -242,25 +304,41 @@ func TestAttendanceAdminServiceCorrectAttendanceKeepsExistingLastDisconnectWhenO
 			idempotency_key,
 			payload_json,
 			target_url,
+			external_record_id,
+			delete_record_id,
 			report_status,
 			response_code,
 			response_body,
+			notification_status,
+			notification_message_id,
+			notification_response_code,
+			notification_response_body,
+			notification_sent_at,
+			notification_retry_count,
 			reported_at,
 			retry_count
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
 			id = LAST_INSERT_ID(id),
 			attendance_record_id = VALUES(attendance_record_id),
 			report_type = VALUES(report_type),
 			payload_json = VALUES(payload_json),
 			target_url = VALUES(target_url),
+			external_record_id = VALUES(external_record_id),
+			delete_record_id = VALUES(delete_record_id),
 			report_status = VALUES(report_status),
 			response_code = VALUES(response_code),
 			response_body = VALUES(response_body),
+			notification_status = VALUES(notification_status),
+			notification_message_id = VALUES(notification_message_id),
+			notification_response_code = VALUES(notification_response_code),
+			notification_response_body = VALUES(notification_response_body),
+			notification_sent_at = VALUES(notification_sent_at),
+			notification_retry_count = VALUES(notification_retry_count),
 			reported_at = VALUES(reported_at),
 			retry_count = VALUES(retry_count)
 	`))).
-		WithArgs(int64(recordID), "clock_in", sqlmock.AnyArg(), sqlmock.AnyArg(), "http://example.test/report", "pending", nil, "", nil, int64(0)).
+		WithArgs(int64(recordID), "clock_in", sqlmock.AnyArg(), sqlmock.AnyArg(), "", "", "", "pending", nil, "", "pending", "", nil, "", nil, int64(0), nil, int64(0)).
 		WillReturnResult(sqlmock.NewResult(81, 1))
 	mock.ExpectCommit()
 
@@ -276,13 +354,6 @@ func TestAttendanceAdminServiceCorrectAttendanceKeepsExistingLastDisconnectWhenO
 	if len(result.Reports) != 1 || result.Reports[0].ReportType != "clock_in" {
 		t.Fatalf("expected only clock_in report, got %+v", result.Reports)
 	}
-	if result.Reports[0].TargetURL != "http://example.test/report" {
-		t.Fatalf("expected report target url from settings, got %q", result.Reports[0].TargetURL)
-	}
-	if len(settingsRepo.keys) != 1 || settingsRepo.keys[0] != reportTargetURLSettingKey {
-		t.Fatalf("expected report target lookup, got %+v", settingsRepo.keys)
-	}
-
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("expected all sql expectations to be met, got %v", err)
 	}
@@ -297,8 +368,7 @@ func TestAttendanceAdminServiceCorrectAttendanceRollsBackWhenReportInsertFails(t
 
 	attendanceRepo := repository.NewMySQLAttendanceRepository(db)
 	reportRepo := repository.NewMySQLReportRepository(db)
-	settingsRepo := &fakeAttendanceSettingsRepo{targetURL: "http://example.test/report"}
-	service := NewAttendanceAdminService(db, attendanceRepo, reportRepo, settingsRepo, NewReportService())
+	service := NewAttendanceAdminService(db, attendanceRepo, reportRepo, nil, NewReportService())
 
 	loc := time.FixedZone("CST", 8*3600)
 	attendanceDate := time.Date(2026, 3, 21, 0, 0, 0, 0, loc)
@@ -342,6 +412,18 @@ func TestAttendanceAdminServiceCorrectAttendanceRollsBackWhenReportInsertFails(t
 	`))).
 		WithArgs(int64(42), attendanceDate, first, last, "done", "done", "none", "manual", int64(3), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(int64(recordID), 1))
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, external_record_id, delete_record_id, report_status, response_code, response_body, notification_status, notification_message_id, notification_response_code, notification_response_body, notification_sent_at, notification_retry_count, reported_at, retry_count
+		FROM attendance_reports
+		WHERE attendance_record_id = ?
+		  AND report_type = ?
+		  AND report_status = 'success'
+		  AND external_record_id <> ''
+		ORDER BY id DESC
+		LIMIT 1
+	`))).
+		WithArgs(int64(recordID), "clock_in").
+		WillReturnError(sql.ErrNoRows)
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		INSERT INTO attendance_reports (
 			attendance_record_id,
@@ -349,26 +431,54 @@ func TestAttendanceAdminServiceCorrectAttendanceRollsBackWhenReportInsertFails(t
 			idempotency_key,
 			payload_json,
 			target_url,
+			external_record_id,
+			delete_record_id,
 			report_status,
 			response_code,
 			response_body,
+			notification_status,
+			notification_message_id,
+			notification_response_code,
+			notification_response_body,
+			notification_sent_at,
+			notification_retry_count,
 			reported_at,
 			retry_count
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
 			id = LAST_INSERT_ID(id),
 			attendance_record_id = VALUES(attendance_record_id),
 			report_type = VALUES(report_type),
 			payload_json = VALUES(payload_json),
 			target_url = VALUES(target_url),
+			external_record_id = VALUES(external_record_id),
+			delete_record_id = VALUES(delete_record_id),
 			report_status = VALUES(report_status),
 			response_code = VALUES(response_code),
 			response_body = VALUES(response_body),
+			notification_status = VALUES(notification_status),
+			notification_message_id = VALUES(notification_message_id),
+			notification_response_code = VALUES(notification_response_code),
+			notification_response_body = VALUES(notification_response_body),
+			notification_sent_at = VALUES(notification_sent_at),
+			notification_retry_count = VALUES(notification_retry_count),
 			reported_at = VALUES(reported_at),
 			retry_count = VALUES(retry_count)
 	`))).
-		WithArgs(int64(recordID), "clock_in", sqlmock.AnyArg(), sqlmock.AnyArg(), "http://example.test/report", "pending", nil, "", nil, int64(0)).
+		WithArgs(int64(recordID), "clock_in", sqlmock.AnyArg(), sqlmock.AnyArg(), "", "", "", "pending", nil, "", "pending", "", nil, "", nil, int64(0), nil, int64(0)).
 		WillReturnResult(sqlmock.NewResult(81, 1))
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, external_record_id, delete_record_id, report_status, response_code, response_body, notification_status, notification_message_id, notification_response_code, notification_response_body, notification_sent_at, notification_retry_count, reported_at, retry_count
+		FROM attendance_reports
+		WHERE attendance_record_id = ?
+		  AND report_type = ?
+		  AND report_status = 'success'
+		  AND external_record_id <> ''
+		ORDER BY id DESC
+		LIMIT 1
+	`))).
+		WithArgs(int64(recordID), "clock_out").
+		WillReturnError(sql.ErrNoRows)
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		INSERT INTO attendance_reports (
 			attendance_record_id,
@@ -376,25 +486,41 @@ func TestAttendanceAdminServiceCorrectAttendanceRollsBackWhenReportInsertFails(t
 			idempotency_key,
 			payload_json,
 			target_url,
+			external_record_id,
+			delete_record_id,
 			report_status,
 			response_code,
 			response_body,
+			notification_status,
+			notification_message_id,
+			notification_response_code,
+			notification_response_body,
+			notification_sent_at,
+			notification_retry_count,
 			reported_at,
 			retry_count
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
 			id = LAST_INSERT_ID(id),
 			attendance_record_id = VALUES(attendance_record_id),
 			report_type = VALUES(report_type),
 			payload_json = VALUES(payload_json),
 			target_url = VALUES(target_url),
+			external_record_id = VALUES(external_record_id),
+			delete_record_id = VALUES(delete_record_id),
 			report_status = VALUES(report_status),
 			response_code = VALUES(response_code),
 			response_body = VALUES(response_body),
+			notification_status = VALUES(notification_status),
+			notification_message_id = VALUES(notification_message_id),
+			notification_response_code = VALUES(notification_response_code),
+			notification_response_body = VALUES(notification_response_body),
+			notification_sent_at = VALUES(notification_sent_at),
+			notification_retry_count = VALUES(notification_retry_count),
 			reported_at = VALUES(reported_at),
 			retry_count = VALUES(retry_count)
 	`))).
-		WithArgs(int64(recordID), "clock_out", sqlmock.AnyArg(), sqlmock.AnyArg(), "http://example.test/report", "pending", nil, "", nil, int64(0)).
+		WithArgs(int64(recordID), "clock_out", sqlmock.AnyArg(), sqlmock.AnyArg(), "", "", "", "pending", nil, "", "pending", "", nil, "", nil, int64(0), nil, int64(0)).
 		WillReturnError(sql.ErrConnDone)
 	mock.ExpectRollback()
 
@@ -420,8 +546,7 @@ func TestAttendanceAdminServiceCorrectAttendanceNoopPatchDoesNotPersistOrCreateR
 
 	attendanceRepo := repository.NewMySQLAttendanceRepository(db)
 	reportRepo := repository.NewMySQLReportRepository(db)
-	settingsRepo := &fakeAttendanceSettingsRepo{targetURL: "http://example.test/report"}
-	service := NewAttendanceAdminService(db, attendanceRepo, reportRepo, settingsRepo, NewReportService())
+	service := NewAttendanceAdminService(db, attendanceRepo, reportRepo, nil, NewReportService())
 
 	loc := time.FixedZone("CST", 8*3600)
 	attendanceDate := time.Date(2026, 3, 21, 0, 0, 0, 0, loc)
@@ -467,8 +592,7 @@ func TestAttendanceAdminServiceCorrectAttendanceClearPatchGeneratesClearReport(t
 
 	attendanceRepo := repository.NewMySQLAttendanceRepository(db)
 	reportRepo := repository.NewMySQLReportRepository(db)
-	settingsRepo := &fakeAttendanceSettingsRepo{targetURL: "http://example.test/report"}
-	service := NewAttendanceAdminService(db, attendanceRepo, reportRepo, settingsRepo, NewReportService())
+	service := NewAttendanceAdminService(db, attendanceRepo, reportRepo, nil, NewReportService())
 
 	loc := time.FixedZone("CST", 8*3600)
 	attendanceDate := time.Date(2026, 3, 21, 0, 0, 0, 0, loc)
@@ -511,6 +635,18 @@ func TestAttendanceAdminServiceCorrectAttendanceClearPatchGeneratesClearReport(t
 	`))).
 		WithArgs(int64(42), attendanceDate, nil, nil, "pending", "missing", "missing_disconnect", "manual", int64(3), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(int64(recordID), 1))
+	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
+		SELECT id, attendance_record_id, report_type, idempotency_key, payload_json, target_url, external_record_id, delete_record_id, report_status, response_code, response_body, notification_status, notification_message_id, notification_response_code, notification_response_body, notification_sent_at, notification_retry_count, reported_at, retry_count
+		FROM attendance_reports
+		WHERE attendance_record_id = ?
+		  AND report_type = ?
+		  AND report_status = 'success'
+		  AND external_record_id <> ''
+		ORDER BY id DESC
+		LIMIT 1
+	`))).
+		WithArgs(int64(recordID), "clock_in").
+		WillReturnError(sql.ErrNoRows)
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		INSERT INTO attendance_reports (
 			attendance_record_id,
@@ -518,25 +654,41 @@ func TestAttendanceAdminServiceCorrectAttendanceClearPatchGeneratesClearReport(t
 			idempotency_key,
 			payload_json,
 			target_url,
+			external_record_id,
+			delete_record_id,
 			report_status,
 			response_code,
 			response_body,
+			notification_status,
+			notification_message_id,
+			notification_response_code,
+			notification_response_body,
+			notification_sent_at,
+			notification_retry_count,
 			reported_at,
 			retry_count
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
 			id = LAST_INSERT_ID(id),
 			attendance_record_id = VALUES(attendance_record_id),
 			report_type = VALUES(report_type),
 			payload_json = VALUES(payload_json),
 			target_url = VALUES(target_url),
+			external_record_id = VALUES(external_record_id),
+			delete_record_id = VALUES(delete_record_id),
 			report_status = VALUES(report_status),
 			response_code = VALUES(response_code),
 			response_body = VALUES(response_body),
+			notification_status = VALUES(notification_status),
+			notification_message_id = VALUES(notification_message_id),
+			notification_response_code = VALUES(notification_response_code),
+			notification_response_body = VALUES(notification_response_body),
+			notification_sent_at = VALUES(notification_sent_at),
+			notification_retry_count = VALUES(notification_retry_count),
 			reported_at = VALUES(reported_at),
 			retry_count = VALUES(retry_count)
 	`))).
-		WithArgs(int64(recordID), "clock_in", sqlmock.AnyArg(), sqlmock.AnyArg(), "http://example.test/report", "pending", nil, "", nil, int64(0)).
+		WithArgs(int64(recordID), "clock_in", sqlmock.AnyArg(), sqlmock.AnyArg(), "", "", "", "pending", nil, "", "skipped", "", nil, "", nil, int64(0), nil, int64(0)).
 		WillReturnResult(sqlmock.NewResult(81, 1))
 	mock.ExpectCommit()
 
@@ -556,10 +708,6 @@ func TestAttendanceAdminServiceCorrectAttendanceClearPatchGeneratesClearReport(t
 	if len(result.Reports) != 1 || result.Reports[0].ReportType != "clock_in" {
 		t.Fatalf("expected clear patch to generate clock_in clear report, got %+v", result.Reports)
 	}
-	if result.Reports[0].TargetURL != "http://example.test/report" {
-		t.Fatalf("expected clear report target url from settings, got %q", result.Reports[0].TargetURL)
-	}
-
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("expected clear patch expectations to be met, got %v", err)
 	}
@@ -574,8 +722,7 @@ func TestAttendanceAdminServiceCorrectAttendanceNullToNilDoesNotIncrementVersion
 
 	attendanceRepo := repository.NewMySQLAttendanceRepository(db)
 	reportRepo := repository.NewMySQLReportRepository(db)
-	settingsRepo := &fakeAttendanceSettingsRepo{targetURL: "http://example.test/report"}
-	service := NewAttendanceAdminService(db, attendanceRepo, reportRepo, settingsRepo, NewReportService())
+	service := NewAttendanceAdminService(db, attendanceRepo, reportRepo, nil, NewReportService())
 
 	loc := time.FixedZone("CST", 8*3600)
 	attendanceDate := time.Date(2026, 3, 21, 0, 0, 0, 0, loc)

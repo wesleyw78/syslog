@@ -3,14 +3,15 @@ package domain
 import "time"
 
 type Employee struct {
-	ID         uint64           `json:"id"`
-	EmployeeNo string           `json:"employeeNo"`
-	SystemNo   string           `json:"systemNo"`
-	Name       string           `json:"name"`
-	Status     string           `json:"status"`
-	Devices    []EmployeeDevice `json:"devices,omitempty"`
-	CreatedAt  time.Time        `json:"createdAt"`
-	UpdatedAt  time.Time        `json:"updatedAt"`
+	ID               uint64           `json:"id"`
+	EmployeeNo       string           `json:"employeeNo"`
+	SystemNo         string           `json:"systemNo"`
+	FeishuEmployeeID string           `json:"feishuEmployeeId"`
+	Name             string           `json:"name"`
+	Status           string           `json:"status"`
+	Devices          []EmployeeDevice `json:"devices,omitempty"`
+	CreatedAt        time.Time        `json:"createdAt"`
+	UpdatedAt        time.Time        `json:"updatedAt"`
 }
 
 type EmployeeDevice struct {

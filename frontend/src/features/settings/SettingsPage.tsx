@@ -6,26 +6,37 @@ import {
   type SystemSetting,
 } from "../../lib/api";
 import { SettingsForm, type SettingsFormValues } from "./components/SettingsForm";
+import { SyslogRulesPanel } from "./components/SyslogRulesPanel";
 
 const DEFAULT_VALUES: SettingsFormValues = {
   dayEndTime: "18:30",
   retentionDays: "45",
-  reportTargetUrl: "",
+  feishuAppId: "",
+  feishuAppSecret: "",
+  feishuLocationName: "",
   reportTimeoutSeconds: "30",
   reportRetryLimit: "5",
 };
 
 function toValues(items: SystemSetting[]): SettingsFormValues {
-  const settingsMap = new Map(items.map((item) => [item.settingKey, item.settingValue]));
+  const settingsMap = new Map(
+    items.map((item) => [item.settingKey, item.settingValue]),
+  );
 
   return {
     dayEndTime: settingsMap.get("day_end_time") ?? DEFAULT_VALUES.dayEndTime,
     retentionDays:
       settingsMap.get("syslog_retention_days") ?? DEFAULT_VALUES.retentionDays,
-    reportTargetUrl:
-      settingsMap.get("report_target_url") ?? DEFAULT_VALUES.reportTargetUrl,
+    feishuAppId:
+      settingsMap.get("feishu_app_id") ?? DEFAULT_VALUES.feishuAppId,
+    feishuAppSecret:
+      settingsMap.get("feishu_app_secret") ?? DEFAULT_VALUES.feishuAppSecret,
+    feishuLocationName:
+      settingsMap.get("feishu_location_name") ??
+      DEFAULT_VALUES.feishuLocationName,
     reportTimeoutSeconds:
-      settingsMap.get("report_timeout_seconds") ?? DEFAULT_VALUES.reportTimeoutSeconds,
+      settingsMap.get("report_timeout_seconds") ??
+      DEFAULT_VALUES.reportTimeoutSeconds,
     reportRetryLimit:
       settingsMap.get("report_retry_limit") ?? DEFAULT_VALUES.reportRetryLimit,
   };
@@ -35,8 +46,16 @@ function toItems(values: SettingsFormValues): SystemSetting[] {
   return [
     { settingKey: "day_end_time", settingValue: values.dayEndTime },
     { settingKey: "syslog_retention_days", settingValue: values.retentionDays },
-    { settingKey: "report_target_url", settingValue: values.reportTargetUrl },
-    { settingKey: "report_timeout_seconds", settingValue: values.reportTimeoutSeconds },
+    { settingKey: "feishu_app_id", settingValue: values.feishuAppId },
+    { settingKey: "feishu_app_secret", settingValue: values.feishuAppSecret },
+    {
+      settingKey: "feishu_location_name",
+      settingValue: values.feishuLocationName,
+    },
+    {
+      settingKey: "report_timeout_seconds",
+      settingValue: values.reportTimeoutSeconds,
+    },
     { settingKey: "report_retry_limit", settingValue: values.reportRetryLimit },
   ];
 }
@@ -93,24 +112,50 @@ export function SettingsPage() {
     }
   }
 
+  const configurationSummary = [
+    {
+      label: "日切时间",
+      value: settings.dayEndTime || "未配置",
+      detail: "用于日终归档与跨日计算",
+    },
+    {
+      label: "日志保留",
+      value: `${settings.retentionDays || "0"} 天`,
+      detail: "控制原始日志清理窗口",
+    },
+    {
+      label: "飞书集成",
+      value:
+        settings.feishuAppId && settings.feishuAppSecret && settings.feishuLocationName
+          ? "已完成"
+          : "待完善",
+      detail: settings.feishuLocationName || "缺少应用凭据或打卡地点",
+    },
+    {
+      label: "投递策略",
+      value: `${settings.reportTimeoutSeconds || "0"}s / ${settings.reportRetryLimit || "0"} 次`,
+      detail: "超时与失败重试上限",
+    },
+  ];
+
   return (
     <section className="page">
       <header className="page-header">
-        <span className="page-header__eyebrow">Configuration</span>
+        <span className="page-header__eyebrow">运行参数</span>
         <div>
-          <h2>Settings</h2>
-          <p>真实系统配置管理，覆盖日切、保留和报告投递参数。</p>
+          <h2>系统设置</h2>
+          <p>按分组方式维护系统运行参数，让日切、保留与上报链路具备更稳定的操作语义。</p>
         </div>
       </header>
 
       <div className="page-grid page-grid--split">
         <article className="panel">
           <div className="panel__header">
-            <h3>系统参数</h3>
+            <h3>运行参数</h3>
             <span>{isSaving ? "保存中..." : "后端同步"}</span>
           </div>
           <p className="panel__copy">{statusMessage}</p>
-          <div style={{ marginTop: "1rem" }}>
+          <div className="panel__body-offset">
             <SettingsForm
               initialValues={settings}
               isDisabled={isLoading || !hasLoadedSettings}
@@ -122,20 +167,31 @@ export function SettingsPage() {
 
         <article className="panel panel--tall">
           <div className="panel__header">
-            <h3>配置说明</h3>
-            <span>当前 keys</span>
+            <h3>当前配置摘要</h3>
+            <span>实时映射</span>
           </div>
-          <p className="panel__copy">
-            `day_end_time`、`syslog_retention_days`、`report_target_url`、
-            `report_timeout_seconds` 和 `report_retry_limit` 已对齐真实后端字段。
-          </p>
-          <ul className="stack-list">
-            <li>日切时间用于跨日归档和报表分段</li>
-            <li>保留天数控制日志与报表清理窗口</li>
-            <li>报告配置控制告警投递链路</li>
-          </ul>
+          <div className="settings-summary-list">
+            {configurationSummary.map((item) => (
+              <div key={item.label} className="settings-summary-card">
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <p>{item.detail}</p>
+              </div>
+            ))}
+          </div>
+          <div className="settings-note">
+            <h4>字段说明</h4>
+            <ul className="stack-list">
+              <li>`day_end_time` 决定跨日归档窗口</li>
+              <li>`syslog_retention_days` 控制日志保留天数</li>
+              <li>`feishu_app_id`、`feishu_app_secret` 和 `feishu_location_name` 共同决定飞书同步是否可用</li>
+              <li>`report_timeout_seconds` 与 `report_retry_limit` 控制投递超时和补偿重试</li>
+            </ul>
+          </div>
         </article>
       </div>
+
+      <SyslogRulesPanel />
     </section>
   );
 }

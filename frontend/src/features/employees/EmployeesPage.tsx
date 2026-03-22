@@ -10,27 +10,23 @@ import {
 } from "../../lib/api";
 import { EmployeeForm } from "./components/EmployeeForm";
 
-const actionButtonStyle = {
-  padding: "0.65rem 0.8rem",
-  border: "1px solid rgba(255, 184, 77, 0.24)",
-  background: "rgba(19, 15, 7, 0.92)",
-  color: "inherit",
-  cursor: "pointer",
-};
-
 function toFormValues(employee: Employee): EmployeeUpsertInput {
   return {
     employeeNo: employee.employeeNo,
     systemNo: employee.systemNo,
+    feishuEmployeeId: employee.feishuEmployeeId,
     name: employee.name,
     status: employee.status,
-    devices: employee.devices.length > 0 ? employee.devices : [
-      {
-        macAddress: "",
-        deviceLabel: "",
-        status: "active",
-      },
-    ],
+    devices:
+      employee.devices.length > 0
+        ? employee.devices
+        : [
+            {
+              macAddress: "",
+              deviceLabel: "",
+              status: "active",
+            },
+          ],
   };
 }
 
@@ -74,6 +70,15 @@ export function EmployeesPage() {
   const activeCount = useMemo(
     () => employees.filter((employee) => employee.status !== "disabled").length,
     [employees],
+  );
+  const totalDevices = useMemo(
+    () =>
+      employees.reduce((count, employee) => count + employee.devices.length, 0),
+    [employees],
+  );
+  const editingEmployee = useMemo(
+    () => employees.find((employee) => employee.id === editingEmployeeId) ?? null,
+    [editingEmployeeId, employees],
   );
 
   async function handleCreateEmployee(input: EmployeeUpsertInput) {
@@ -133,85 +138,128 @@ export function EmployeesPage() {
   return (
     <section className="page">
       <header className="page-header">
-        <span className="page-header__eyebrow">Workforce</span>
+        <span className="page-header__eyebrow">人员映射</span>
         <div>
-          <h2>Employees</h2>
-          <p>真实员工档案管理，支持新增、编辑、停用和设备信息维护。</p>
+          <h2>员工档案</h2>
+          <p>用固定编辑区维护档案，用紧凑名册查看人员、设备和飞书映射，减少重复信息与扫描成本。</p>
         </div>
       </header>
 
+      <div className="metric-strip">
+        <article className="panel metric-card">
+          <span>员工档案</span>
+          <strong>{employees.length}</strong>
+          <p>当前已登记的人员总数</p>
+        </article>
+        <article className="panel metric-card">
+          <span>在岗人员</span>
+          <strong>{activeCount}</strong>
+          <p>状态不为 disabled 的员工</p>
+        </article>
+        <article className="panel metric-card">
+          <span>绑定设备</span>
+          <strong>{totalDevices}</strong>
+          <p>已登记的设备映射总数</p>
+        </article>
+        <article className="panel metric-card">
+          <span>当前模式</span>
+          <strong>{editingEmployee ? "编辑中" : "新建中"}</strong>
+          <p>{editingEmployee ? editingEmployee.name : "准备新增员工档案"}</p>
+        </article>
+      </div>
+
       <div className="page-grid page-grid--split">
-        <article className="panel">
+        <article className="panel employee-editor">
           <div className="panel__header">
-            <h3>员工录入</h3>
-            <span>{isLoading ? "加载中..." : `${activeCount} active badges`}</span>
+            <h3>{editingEmployee ? "编辑员工" : "新增员工"}</h3>
+            <span>{isLoading ? "加载中..." : `${activeCount} 名在岗`}</span>
           </div>
           <p className="panel__copy">{notice}</p>
-          <div style={{ marginTop: "1rem" }}>
+          {editingEmployee ? (
+            <button
+              type="button"
+              className="button button--ghost button--small"
+              onClick={() => setEditingEmployeeId(null)}
+            >
+              返回新增
+            </button>
+          ) : null}
+          <div className="employee-editor__form">
             <EmployeeForm
-              resetOnSubmit
-              isSubmitting={isSubmitting}
-              onSubmit={handleCreateEmployee}
+              key={editingEmployee?.id ?? "create"}
+              initialValues={editingEmployee ? toFormValues(editingEmployee) : undefined}
+              resetOnSubmit={!editingEmployee}
+              isSubmitting={
+                editingEmployee ? pendingEmployeeId === editingEmployee.id : isSubmitting
+              }
+              onCancel={editingEmployee ? () => setEditingEmployeeId(null) : undefined}
+              onSubmit={(input) =>
+                editingEmployee
+                  ? handleUpdateEmployee(editingEmployee.id, input)
+                  : handleCreateEmployee(input)
+              }
+              submitLabel={editingEmployee ? "保存变更" : "新增员工"}
             />
           </div>
         </article>
 
         <article className="panel panel--tall">
           <div className="panel__header">
-            <h3>员工列表</h3>
-            <span>{employees.length} records</span>
+            <h3>人员名册</h3>
+            <span>{employees.length} 条档案</span>
           </div>
-          <div className="employee-grid">
+          <div className="employee-roster" role="table" aria-label="员工名册">
+            <div className="employee-roster__head" role="row">
+              <span>员工</span>
+              <span>编号</span>
+              <span>飞书</span>
+              <span>设备</span>
+              <span>状态</span>
+              <span>动作</span>
+            </div>
             {employees.map((employee) => (
-              <article key={employee.id} className="employee-card">
-                <strong>{employee.name}</strong>
-                <span>
-                  {employee.employeeNo} / {employee.systemNo}
-                </span>
-                <span>{employee.status}</span>
-                <p>{`${employee.devices.length} 台设备`}</p>
-                <p>
-                  {employee.devices
-                    .map((device) => `${device.deviceLabel || device.macAddress}`)
-                    .join(" / ")}
-                </p>
-                {editingEmployeeId === employee.id ? (
-                  <EmployeeForm
-                    initialValues={toFormValues(employee)}
-                    isSubmitting={pendingEmployeeId === employee.id}
-                    onCancel={() => setEditingEmployeeId(null)}
-                    onSubmit={(input) => handleUpdateEmployee(employee.id, input)}
-                    submitLabel="保存变更"
-                  />
-                ) : (
-                  <div className="filter-row">
-                    <button
-                      type="button"
-                      onClick={() => setEditingEmployeeId(employee.id)}
-                      disabled={
-                        pendingEmployeeId === employee.id || employee.status === "disabled"
-                      }
-                      style={actionButtonStyle}
-                    >
-                      编辑
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleDisableEmployee(employee.id)}
-                      disabled={
-                        pendingEmployeeId === employee.id || employee.status === "disabled"
-                      }
-                      style={{
-                        ...actionButtonStyle,
-                        border: "1px solid rgba(116, 216, 169, 0.24)",
-                        background: "rgba(11, 22, 18, 0.92)",
-                      }}
-                    >
-                      {employee.status === "disabled" ? "已停用" : "停用"}
-                    </button>
-                  </div>
-                )}
-              </article>
+              <div key={employee.id} className="employee-roster__row" role="row">
+                <div className="employee-roster__identity" role="cell">
+                  <strong>{employee.name}</strong>
+                  <span>{employee.systemNo}</span>
+                </div>
+                <span role="cell">{employee.employeeNo}</span>
+                <span role="cell">{employee.feishuEmployeeId || "未配置"}</span>
+                <div role="cell" className="employee-device-tags">
+                  {employee.devices.length > 0 ? (
+                    employee.devices.map((device) => (
+                      <span key={`${employee.id}-${device.macAddress}`} className="employee-device-tag">
+                        {device.deviceLabel || device.macAddress}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="employee-device-tag">无设备</span>
+                  )}
+                </div>
+                <span role="cell">{employee.status === "disabled" ? "已停用" : "启用中"}</span>
+                <div role="cell" className="employee-roster__actions">
+                  <button
+                    type="button"
+                    onClick={() => setEditingEmployeeId(employee.id)}
+                    disabled={
+                      pendingEmployeeId === employee.id || employee.status === "disabled"
+                    }
+                    className="button button--ghost button--small"
+                  >
+                    编辑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDisableEmployee(employee.id)}
+                    disabled={
+                      pendingEmployeeId === employee.id || employee.status === "disabled"
+                    }
+                    className="button button--danger button--small"
+                  >
+                    停用
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         </article>

@@ -13,8 +13,6 @@ import (
 	"syslog/internal/repository"
 )
 
-const reportTargetURLSettingKey = "report_target_url"
-
 type SyslogPipelineDeps struct {
 	DB             *sql.DB
 	Messages       repository.SyslogMessageRepository
@@ -23,6 +21,7 @@ type SyslogPipelineDeps struct {
 	Attendance     repository.AttendanceRepository
 	Reports        repository.ReportRepository
 	Settings       repository.SystemSettingRepository
+	Rules          repository.SyslogReceiveRuleRepository
 	RetentionDays  int
 	AttendanceProc *AttendanceProcessor
 	ReportSvc      *ReportService
@@ -36,6 +35,7 @@ type SyslogPipeline struct {
 	attendance     repository.AttendanceRepository
 	reports        repository.ReportRepository
 	settings       repository.SystemSettingRepository
+	rules          repository.SyslogReceiveRuleRepository
 	retentionDays  int
 	attendanceProc *AttendanceProcessor
 	reportSvc      *ReportService
@@ -57,6 +57,7 @@ func NewSyslogPipeline(deps SyslogPipelineDeps) *SyslogPipeline {
 		attendance:     deps.Attendance,
 		reports:        deps.Reports,
 		settings:       deps.Settings,
+		rules:          deps.Rules,
 		retentionDays:  deps.RetentionDays,
 		attendanceProc: deps.AttendanceProc,
 		reportSvc:      deps.ReportSvc,
@@ -65,31 +66,44 @@ func NewSyslogPipeline(deps SyslogPipelineDeps) *SyslogPipeline {
 
 func (p *SyslogPipeline) Handle(ctx context.Context, payload []byte, addr net.Addr, receivedAt time.Time) error {
 	raw := string(payload)
-	event, parseErr := parser.ParseAPSyslog(raw, receivedAt)
+	match, err := p.parseSyslog(ctx, raw, receivedAt)
+	if err != nil {
+		return err
+	}
+
+	var (
+		event         *domain.ClientEvent
+		parseStatus   = "ignored"
+		logTime       *time.Time
+		matchedRuleID *uint64
+	)
+	if match != nil && match.Event != nil {
+		event = match.Event
+		parseStatus = "parsed"
+		logTime = timePointer(event.EventTime)
+		if match.Rule != nil {
+			matchedRuleID = &match.Rule.ID
+		}
+	}
+
 	message := domain.SyslogMessage{
 		ReceivedAt:        receivedAt,
-		LogTime:           timePointer(receivedAt),
+		LogTime:           logTime,
 		RawMessage:        raw,
 		SourceIP:          sourceIPFromAddr(addr),
 		Protocol:          "udp",
-		ParseStatus:       "parsed",
+		ParseStatus:       parseStatus,
+		MatchedRuleID:     matchedRuleID,
 		RetentionExpireAt: receivedAt.Add(time.Duration(p.retentionDays) * 24 * time.Hour),
-	}
-
-	if parseErr != nil {
-		message.ParseStatus = "failed"
-		if p.messages != nil {
-			if err := p.messages.Save(ctx, &message); err != nil {
-				return err
-			}
-		}
-		return nil
 	}
 
 	if p.messages != nil {
 		if err := p.messages.Save(ctx, &message); err != nil {
 			return err
 		}
+	}
+	if event == nil {
+		return nil
 	}
 	event.SyslogMessageID = message.ID
 	event.MatchStatus = "unmatched"
@@ -104,7 +118,7 @@ func (p *SyslogPipeline) Handle(ctx context.Context, payload []byte, addr net.Ad
 	}
 
 	if p.events != nil {
-		if err := p.events.Save(ctx, &event); err != nil {
+		if err := p.events.Save(ctx, event); err != nil {
 			return err
 		}
 	}
@@ -118,7 +132,7 @@ func (p *SyslogPipeline) Handle(ctx context.Context, payload []byte, addr net.Ad
 		return err
 	}
 
-	result := p.attendanceProc.ApplyEvent(*record, *employee, event)
+	result := p.attendanceProc.ApplyEvent(*record, *employee, *event)
 	if !result.ClockInNeedsReport {
 		return p.saveAttendanceOnly(ctx, result.Record)
 	}
@@ -134,13 +148,8 @@ func (p *SyslogPipeline) Handle(ctx context.Context, payload []byte, addr net.Ad
 		return p.saveAttendanceOnly(ctx, result.Record)
 	}
 
-	targetURL, err := p.reportTargetURL(ctx)
-	if err != nil {
-		return err
-	}
-
 	if p.db != nil {
-		return p.saveAttendanceAndReportWithTx(ctx, result.Record, reportType, reportTime, targetURL)
+		return p.saveAttendanceAndReportWithTx(ctx, result.Record, reportType, reportTime)
 	}
 
 	if p.attendance != nil {
@@ -149,7 +158,7 @@ func (p *SyslogPipeline) Handle(ctx context.Context, payload []byte, addr net.Ad
 		}
 	}
 
-	report := p.reportSvc.CreatePendingReport(result.Record, reportType, reportTime, targetURL)
+	report := p.reportSvc.CreatePendingReport(result.Record, reportType, reportTime)
 	if p.reports != nil {
 		if err := p.reports.Save(ctx, &report); err != nil {
 			return err
@@ -157,6 +166,34 @@ func (p *SyslogPipeline) Handle(ctx context.Context, payload []byte, addr net.Ad
 	}
 
 	return nil
+}
+
+func (p *SyslogPipeline) Preview(raw string, receivedAt time.Time) (*domain.ClientEvent, error) {
+	match, err := p.parseSyslog(context.Background(), raw, receivedAt)
+	if err != nil || match == nil {
+		return nil, err
+	}
+	return match.Event, nil
+}
+
+func (p *SyslogPipeline) parseSyslog(ctx context.Context, raw string, receivedAt time.Time) (*SyslogRuleMatchResult, error) {
+	if p.rules == nil {
+		event, err := parser.ParseAPSyslog(raw, receivedAt)
+		if err != nil {
+			return nil, nil
+		}
+		return &SyslogRuleMatchResult{Event: &event}, nil
+	}
+
+	rules, err := p.rules.ListEnabled(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(rules) == 0 {
+		return nil, nil
+	}
+
+	return matchSyslogRule(raw, receivedAt, rules)
 }
 
 func (p *SyslogPipeline) saveAttendanceOnly(ctx context.Context, record domain.AttendanceRecord) error {
@@ -216,25 +253,6 @@ func (p *SyslogPipeline) loadAttendanceRecord(ctx context.Context, employeeID ui
 	return record, nil
 }
 
-func (p *SyslogPipeline) reportTargetURL(ctx context.Context) (string, error) {
-	if p.settings == nil {
-		return "", nil
-	}
-
-	setting, err := p.settings.GetByKey(ctx, reportTargetURLSettingKey)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", nil
-		}
-		return "", err
-	}
-	if setting == nil {
-		return "", nil
-	}
-
-	return strings.TrimSpace(setting.SettingValue), nil
-}
-
 type attendanceTxRepository interface {
 	WithTx(*sql.Tx) repository.AttendanceRepository
 }
@@ -243,7 +261,7 @@ type reportTxRepository interface {
 	WithTx(*sql.Tx) repository.ReportRepository
 }
 
-func (p *SyslogPipeline) saveAttendanceAndReportWithTx(ctx context.Context, record domain.AttendanceRecord, reportType string, reportTime time.Time, targetURL string) (err error) {
+func (p *SyslogPipeline) saveAttendanceAndReportWithTx(ctx context.Context, record domain.AttendanceRecord, reportType string, reportTime time.Time) (err error) {
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -268,7 +286,7 @@ func (p *SyslogPipeline) saveAttendanceAndReportWithTx(ctx context.Context, reco
 		return err
 	}
 
-	report := p.reportSvc.CreatePendingReport(record, reportType, reportTime, targetURL)
+	report := p.reportSvc.CreatePendingReport(record, reportType, reportTime)
 	if err = reportRepo.WithTx(tx).Save(ctx, &report); err != nil {
 		return err
 	}

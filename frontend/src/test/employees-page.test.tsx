@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 describe("employees page", () => {
-  it("loads employees and sends create, update, and disable requests to the API", async () => {
+  it("loads employees, allows removing draft devices, and sends create, update, and disable requests to the API", async () => {
     const { fetchMock } = mockJsonFetch([
       {
         method: "GET",
@@ -22,6 +22,7 @@ describe("employees page", () => {
               id: "emp-1",
               employeeNo: "E-001",
               systemNo: "SYS-001",
+              feishuEmployeeId: "fs_emp_001",
               name: "Lena Wu",
               status: "active",
               devices: [
@@ -45,6 +46,7 @@ describe("employees page", () => {
             id: "emp-2",
             employeeNo: "E-102",
             systemNo: "SYS-102",
+            feishuEmployeeId: "fs_emp_102",
             name: "Chen Li",
             status: "active",
             devices: [
@@ -67,6 +69,7 @@ describe("employees page", () => {
           expect(body).toEqual({
             employeeNo: "E-102",
             systemNo: "SYS-102",
+            feishuEmployeeId: "fs_emp_102",
             name: "Chen Li",
             status: "active",
             devices: [
@@ -92,6 +95,7 @@ describe("employees page", () => {
             id: "emp-2",
             employeeNo: "E-102",
             systemNo: "SYS-102",
+            feishuEmployeeId: "fs_emp_102",
             name: "Chen Li Updated",
             status: "active",
             devices: [
@@ -114,6 +118,7 @@ describe("employees page", () => {
           expect(body).toEqual({
             employeeNo: "E-102",
             systemNo: "SYS-102",
+            feishuEmployeeId: "fs_emp_102",
             name: "Chen Li Updated",
             status: "active",
             devices: [
@@ -139,6 +144,7 @@ describe("employees page", () => {
             id: "emp-2",
             employeeNo: "E-102",
             systemNo: "SYS-102",
+            feishuEmployeeId: "fs_emp_102",
             name: "Chen Li Updated",
             status: "disabled",
             devices: [
@@ -162,6 +168,8 @@ describe("employees page", () => {
 
     render(<EmployeesPage />);
 
+    expect(screen.getByRole("heading", { name: "员工档案" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "新增员工" })).toBeInTheDocument();
     expect(screen.getByText("加载员工档案...")).toBeInTheDocument();
     expect(await screen.findByText("Lena Wu")).toBeInTheDocument();
 
@@ -170,6 +178,9 @@ describe("employees page", () => {
     });
     fireEvent.change(screen.getByLabelText("系统编号"), {
       target: { value: "SYS-102" },
+    });
+    fireEvent.change(screen.getByLabelText("飞书员工 ID"), {
+      target: { value: "fs_emp_102" },
     });
     fireEvent.change(screen.getByLabelText("姓名"), {
       target: { value: "Chen Li" },
@@ -187,35 +198,45 @@ describe("employees page", () => {
     fireEvent.change(screen.getByLabelText("设备 2 标签"), {
       target: { value: "Packing Line" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "移除设备 2" }));
+    expect(screen.queryByLabelText("设备 2 MAC")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "添加设备" }));
+    fireEvent.change(screen.getByLabelText("设备 2 MAC"), {
+      target: { value: "AA:BB:CC:DD:EE:03" },
+    });
+    fireEvent.change(screen.getByLabelText("设备 2 标签"), {
+      target: { value: "Packing Line" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "新增员工" }));
 
-    const createdCard = await screen.findByText("Chen Li");
-    const createdArticle = createdCard.closest("article");
+    const createdRowLabel = await screen.findByText("Chen Li");
+    const createdRow = createdRowLabel.closest('[role="row"]');
 
-    expect(createdArticle).not.toBeNull();
-    expect(within(createdArticle as HTMLElement).getByText(/E-102/)).toBeInTheDocument();
-    expect(within(createdArticle as HTMLElement).getByText("2 台设备")).toBeInTheDocument();
+    expect(createdRow).not.toBeNull();
+    expect(within(createdRow as HTMLElement).getByText(/E-102/)).toBeInTheDocument();
+    expect(within(createdRow as HTMLElement).getByText("fs_emp_102")).toBeInTheDocument();
+    expect(within(createdRow as HTMLElement).getByText("Front Gate")).toBeInTheDocument();
+    expect(within(createdRow as HTMLElement).getByText("Packing Line")).toBeInTheDocument();
 
     fireEvent.click(
-      within(createdArticle as HTMLElement).getByRole("button", { name: "编辑" }),
+      within(createdRow as HTMLElement).getByRole("button", { name: "编辑" }),
     );
 
-    fireEvent.change(within(createdArticle as HTMLElement).getByLabelText("姓名"), {
+    expect(screen.getByRole("heading", { name: "编辑员工" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("姓名"), {
       target: { value: "Chen Li Updated" },
     });
-    fireEvent.click(
-      within(createdArticle as HTMLElement).getByRole("button", { name: "保存变更" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "保存变更" }));
 
     expect(
-      await within(createdArticle as HTMLElement).findByText("Chen Li Updated"),
+      await within(createdRow as HTMLElement).findByText("Chen Li Updated"),
     ).toBeInTheDocument();
 
     fireEvent.click(
-      within(createdArticle as HTMLElement).getByRole("button", { name: "停用" }),
+      within(createdRow as HTMLElement).getByRole("button", { name: "停用" }),
     );
 
-    expect(await within(createdArticle as HTMLElement).findByText("已停用")).toBeInTheDocument();
+    expect(await within(createdRow as HTMLElement).findByText("已停用")).toBeInTheDocument();
 
     expect(fetchMock).toHaveBeenCalledWith("/api/employees", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith(
@@ -246,6 +267,7 @@ describe("employees page", () => {
 
     render(<EmployeesPage />);
 
+    expect(screen.getByRole("heading", { name: "员工档案" })).toBeInTheDocument();
     expect(
       await screen.findByText("员工档案加载失败，请稍后重试"),
     ).toBeInTheDocument();

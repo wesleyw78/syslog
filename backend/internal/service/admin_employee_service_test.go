@@ -28,11 +28,12 @@ func TestEmployeeAdminServiceCreatePersistsEmployeeAndDevices(t *testing.T) {
 		INSERT INTO employees (
 			employee_no,
 			system_no,
+			feishu_employee_id,
 			name,
 			status
-		) VALUES (?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?)
 	`))).
-		WithArgs("EMP-001", "SYS-001", "Alice", "active").
+		WithArgs("EMP-001", "SYS-001", "fs_emp_001", "Alice", "active").
 		WillReturnResult(sqlmock.NewResult(11, 1))
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		DELETE FROM employee_devices
@@ -53,7 +54,7 @@ func TestEmployeeAdminServiceCreatePersistsEmployeeAndDevices(t *testing.T) {
 	mock.ExpectCommit()
 	now := time.Date(2026, 3, 21, 8, 0, 0, 0, time.UTC)
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at,
 		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
 		FROM employees e
 		LEFT JOIN employee_devices d ON d.employee_id = e.id
@@ -61,14 +62,15 @@ func TestEmployeeAdminServiceCreatePersistsEmployeeAndDevices(t *testing.T) {
 		ORDER BY d.id ASC
 	`))).
 		WithArgs(uint64(11)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
-			AddRow(uint64(11), "EMP-001", "SYS-001", "Alice", "active", now, now, uint64(21), "aa:bb:cc:dd:ee:ff", "iPhone", "active", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "feishu_employee_id", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
+			AddRow(uint64(11), "EMP-001", "SYS-001", "fs_emp_001", "Alice", "active", now, now, uint64(21), "aa:bb:cc:dd:ee:ff", "iPhone", "active", now, now))
 
 	got, err := service.CreateEmployee(context.Background(), EmployeeWriteInput{
-		EmployeeNo: "EMP-001",
-		SystemNo:   "SYS-001",
-		Name:       "Alice",
-		Status:     "active",
+		EmployeeNo:       "EMP-001",
+		SystemNo:         "SYS-001",
+		FeishuEmployeeID: "fs_emp_001",
+		Name:             "Alice",
+		Status:           "active",
 		Devices: []EmployeeDeviceInput{
 			{
 				MacAddress:  "AA:BB:CC:DD:EE:FF",
@@ -104,7 +106,7 @@ func TestEmployeeAdminServiceUpdateReplacesDevices(t *testing.T) {
 
 	now := time.Date(2026, 3, 21, 8, 0, 0, 0, time.UTC)
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at,
 		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
 		FROM employees e
 		LEFT JOIN employee_devices d ON d.employee_id = e.id
@@ -112,16 +114,16 @@ func TestEmployeeAdminServiceUpdateReplacesDevices(t *testing.T) {
 		ORDER BY d.id ASC
 	`))).
 		WithArgs(uint64(11)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
-			AddRow(uint64(11), "EMP-002", "SYS-002", "Bob", "active", now, now, uint64(22), "11:22:33:44:55:66", "Laptop", "active", now, now).
-			AddRow(uint64(11), "EMP-002", "SYS-002", "Bob", "active", now, now, uint64(23), "aa:bb:cc:dd:ee:11", "Tablet", "disabled", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "feishu_employee_id", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
+			AddRow(uint64(11), "EMP-002", "SYS-002", "fs_emp_002", "Bob", "active", now, now, uint64(22), "11:22:33:44:55:66", "Laptop", "active", now, now).
+			AddRow(uint64(11), "EMP-002", "SYS-002", "fs_emp_002", "Bob", "active", now, now, uint64(23), "aa:bb:cc:dd:ee:11", "Tablet", "disabled", now, now))
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		UPDATE employees
-		SET employee_no = ?, system_no = ?, name = ?, status = ?
+		SET employee_no = ?, system_no = ?, feishu_employee_id = ?, name = ?, status = ?
 		WHERE id = ?
 	`))).
-		WithArgs("EMP-002", "SYS-002", "Bob", "active", int64(11)).
+		WithArgs("EMP-002", "SYS-002", "fs_emp_002", "Bob", "active", int64(11)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		DELETE FROM employee_devices
@@ -151,7 +153,7 @@ func TestEmployeeAdminServiceUpdateReplacesDevices(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(23, 1))
 	mock.ExpectCommit()
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at,
 		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
 		FROM employees e
 		LEFT JOIN employee_devices d ON d.employee_id = e.id
@@ -159,15 +161,16 @@ func TestEmployeeAdminServiceUpdateReplacesDevices(t *testing.T) {
 		ORDER BY d.id ASC
 	`))).
 		WithArgs(uint64(11)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
-			AddRow(uint64(11), "EMP-002", "SYS-002", "Bob", "active", now, now, uint64(22), "11:22:33:44:55:66", "Laptop", "active", now, now).
-			AddRow(uint64(11), "EMP-002", "SYS-002", "Bob", "active", now, now, uint64(23), "aa:bb:cc:dd:ee:11", "Tablet", "disabled", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "feishu_employee_id", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
+			AddRow(uint64(11), "EMP-002", "SYS-002", "fs_emp_002", "Bob", "active", now, now, uint64(22), "11:22:33:44:55:66", "Laptop", "active", now, now).
+			AddRow(uint64(11), "EMP-002", "SYS-002", "fs_emp_002", "Bob", "active", now, now, uint64(23), "aa:bb:cc:dd:ee:11", "Tablet", "disabled", now, now))
 
 	got, err := service.UpdateEmployee(context.Background(), 11, EmployeeWriteInput{
-		EmployeeNo: "EMP-002",
-		SystemNo:   "SYS-002",
-		Name:       "Bob",
-		Status:     "active",
+		EmployeeNo:       "EMP-002",
+		SystemNo:         "SYS-002",
+		FeishuEmployeeID: "fs_emp_002",
+		Name:             "Bob",
+		Status:           "active",
 		Devices: []EmployeeDeviceInput{
 			{
 				MacAddress:  "11:22:33:44:55:66",
@@ -211,7 +214,7 @@ func TestEmployeeAdminServiceUpdateReplacesDevicesWhenMainFieldsUnchanged(t *tes
 
 	now := time.Date(2026, 3, 21, 8, 0, 0, 0, time.UTC)
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at,
 		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
 		FROM employees e
 		LEFT JOIN employee_devices d ON d.employee_id = e.id
@@ -219,15 +222,15 @@ func TestEmployeeAdminServiceUpdateReplacesDevicesWhenMainFieldsUnchanged(t *tes
 		ORDER BY d.id ASC
 	`))).
 		WithArgs(uint64(11)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
-			AddRow(uint64(11), "EMP-001", "SYS-001", "Alice", "active", now, now, uint64(21), "aa:bb:cc:dd:ee:ff", "Phone", "active", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "feishu_employee_id", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
+			AddRow(uint64(11), "EMP-001", "SYS-001", "fs_emp_001", "Alice", "active", now, now, uint64(21), "aa:bb:cc:dd:ee:ff", "Phone", "active", now, now))
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		UPDATE employees
-		SET employee_no = ?, system_no = ?, name = ?, status = ?
+		SET employee_no = ?, system_no = ?, feishu_employee_id = ?, name = ?, status = ?
 		WHERE id = ?
 	`))).
-		WithArgs("EMP-001", "SYS-001", "Alice", "active", int64(11)).
+		WithArgs("EMP-001", "SYS-001", "fs_emp_001", "Alice", "active", int64(11)).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		DELETE FROM employee_devices
@@ -247,7 +250,7 @@ func TestEmployeeAdminServiceUpdateReplacesDevicesWhenMainFieldsUnchanged(t *tes
 		WillReturnResult(sqlmock.NewResult(22, 1))
 	mock.ExpectCommit()
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at,
 		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
 		FROM employees e
 		LEFT JOIN employee_devices d ON d.employee_id = e.id
@@ -255,14 +258,15 @@ func TestEmployeeAdminServiceUpdateReplacesDevicesWhenMainFieldsUnchanged(t *tes
 		ORDER BY d.id ASC
 	`))).
 		WithArgs(uint64(11)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
-			AddRow(uint64(11), "EMP-001", "SYS-001", "Alice", "active", now, now, uint64(22), "11:22:33:44:55:66", "Laptop", "active", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "feishu_employee_id", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
+			AddRow(uint64(11), "EMP-001", "SYS-001", "fs_emp_001", "Alice", "active", now, now, uint64(22), "11:22:33:44:55:66", "Laptop", "active", now, now))
 
 	got, err := service.UpdateEmployee(context.Background(), 11, EmployeeWriteInput{
-		EmployeeNo: "EMP-001",
-		SystemNo:   "SYS-001",
-		Name:       "Alice",
-		Status:     "active",
+		EmployeeNo:       "EMP-001",
+		SystemNo:         "SYS-001",
+		FeishuEmployeeID: "fs_emp_001",
+		Name:             "Alice",
+		Status:           "active",
 		Devices: []EmployeeDeviceInput{
 			{
 				MacAddress:  "11:22:33:44:55:66",
@@ -295,7 +299,7 @@ func TestEmployeeAdminServiceDisableDisablesEmployeeAndDevices(t *testing.T) {
 
 	now := time.Date(2026, 3, 21, 8, 0, 0, 0, time.UTC)
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at,
 		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
 		FROM employees e
 		LEFT JOIN employee_devices d ON d.employee_id = e.id
@@ -303,8 +307,8 @@ func TestEmployeeAdminServiceDisableDisablesEmployeeAndDevices(t *testing.T) {
 		ORDER BY d.id ASC
 	`))).
 		WithArgs(uint64(11)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
-			AddRow(uint64(11), "EMP-001", "SYS-001", "Alice", "active", now, now, uint64(21), "aa:bb:cc:dd:ee:ff", "iPhone", "active", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "feishu_employee_id", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
+			AddRow(uint64(11), "EMP-001", "SYS-001", "fs_emp_001", "Alice", "active", now, now, uint64(21), "aa:bb:cc:dd:ee:ff", "iPhone", "active", now, now))
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		UPDATE employees
@@ -322,7 +326,7 @@ func TestEmployeeAdminServiceDisableDisablesEmployeeAndDevices(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 2))
 	mock.ExpectCommit()
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at,
 		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
 		FROM employees e
 		LEFT JOIN employee_devices d ON d.employee_id = e.id
@@ -330,8 +334,8 @@ func TestEmployeeAdminServiceDisableDisablesEmployeeAndDevices(t *testing.T) {
 		ORDER BY d.id ASC
 	`))).
 		WithArgs(uint64(11)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
-			AddRow(uint64(11), "EMP-001", "SYS-001", "Alice", "disabled", now, now, uint64(21), "aa:bb:cc:dd:ee:ff", "iPhone", "disabled", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "feishu_employee_id", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
+			AddRow(uint64(11), "EMP-001", "SYS-001", "fs_emp_001", "Alice", "disabled", now, now, uint64(21), "aa:bb:cc:dd:ee:ff", "iPhone", "disabled", now, now))
 
 	got, err := service.DisableEmployee(context.Background(), 11)
 	if err != nil {
@@ -361,7 +365,7 @@ func TestEmployeeAdminServiceDisableAlreadyDisabledEmployeeSucceeds(t *testing.T
 
 	now := time.Date(2026, 3, 21, 8, 0, 0, 0, time.UTC)
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at,
 		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
 		FROM employees e
 		LEFT JOIN employee_devices d ON d.employee_id = e.id
@@ -369,8 +373,8 @@ func TestEmployeeAdminServiceDisableAlreadyDisabledEmployeeSucceeds(t *testing.T
 		ORDER BY d.id ASC
 	`))).
 		WithArgs(uint64(11)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
-			AddRow(uint64(11), "EMP-001", "SYS-001", "Alice", "disabled", now, now, uint64(21), "aa:bb:cc:dd:ee:ff", "iPhone", "disabled", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "feishu_employee_id", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
+			AddRow(uint64(11), "EMP-001", "SYS-001", "fs_emp_001", "Alice", "disabled", now, now, uint64(21), "aa:bb:cc:dd:ee:ff", "iPhone", "disabled", now, now))
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		UPDATE employees
@@ -388,7 +392,7 @@ func TestEmployeeAdminServiceDisableAlreadyDisabledEmployeeSucceeds(t *testing.T
 		WillReturnResult(sqlmock.NewResult(0, 2))
 	mock.ExpectCommit()
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at,
 		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
 		FROM employees e
 		LEFT JOIN employee_devices d ON d.employee_id = e.id
@@ -396,8 +400,8 @@ func TestEmployeeAdminServiceDisableAlreadyDisabledEmployeeSucceeds(t *testing.T
 		ORDER BY d.id ASC
 	`))).
 		WithArgs(uint64(11)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
-			AddRow(uint64(11), "EMP-001", "SYS-001", "Alice", "disabled", now, now, uint64(21), "aa:bb:cc:dd:ee:ff", "iPhone", "disabled", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "employee_no", "system_no", "feishu_employee_id", "name", "status", "created_at", "updated_at", "device_id", "mac_address", "device_label", "device_status", "device_created_at", "device_updated_at"}).
+			AddRow(uint64(11), "EMP-001", "SYS-001", "fs_emp_001", "Alice", "disabled", now, now, uint64(21), "aa:bb:cc:dd:ee:ff", "iPhone", "disabled", now, now))
 
 	got, err := service.DisableEmployee(context.Background(), 11)
 	if err != nil {
@@ -427,11 +431,12 @@ func TestEmployeeAdminServiceCreateRollsBackWhenDeviceInsertFails(t *testing.T) 
 		INSERT INTO employees (
 			employee_no,
 			system_no,
+			feishu_employee_id,
 			name,
 			status
-		) VALUES (?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?)
 	`))).
-		WithArgs("EMP-003", "SYS-003", "Carol", "active").
+		WithArgs("EMP-003", "SYS-003", "fs_emp_003", "Carol", "active").
 		WillReturnResult(sqlmock.NewResult(12, 1))
 	mock.ExpectExec(regexp.QuoteMeta(strings.TrimSpace(`
 		DELETE FROM employee_devices
@@ -452,10 +457,11 @@ func TestEmployeeAdminServiceCreateRollsBackWhenDeviceInsertFails(t *testing.T) 
 	mock.ExpectRollback()
 
 	_, err = service.CreateEmployee(context.Background(), EmployeeWriteInput{
-		EmployeeNo: "EMP-003",
-		SystemNo:   "SYS-003",
-		Name:       "Carol",
-		Status:     "active",
+		EmployeeNo:       "EMP-003",
+		SystemNo:         "SYS-003",
+		FeishuEmployeeID: "fs_emp_003",
+		Name:             "Carol",
+		Status:           "active",
 		Devices: []EmployeeDeviceInput{
 			{
 				MacAddress:  "AA:BB:CC:DD:EE:12",
@@ -484,7 +490,7 @@ func TestEmployeeAdminServiceUpdateReturnsNotFoundWhenEmployeeMissing(t *testing
 	service := NewEmployeeAdminService(db, repo)
 
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at,
 		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
 		FROM employees e
 		LEFT JOIN employee_devices d ON d.employee_id = e.id
@@ -495,10 +501,11 @@ func TestEmployeeAdminServiceUpdateReturnsNotFoundWhenEmployeeMissing(t *testing
 		WillReturnError(sql.ErrNoRows)
 
 	_, err = service.UpdateEmployee(context.Background(), 404, EmployeeWriteInput{
-		EmployeeNo: "EMP-404",
-		SystemNo:   "SYS-404",
-		Name:       "Nobody",
-		Status:     "active",
+		EmployeeNo:       "EMP-404",
+		SystemNo:         "SYS-404",
+		FeishuEmployeeID: "fs_emp_404",
+		Name:             "Nobody",
+		Status:           "active",
 	})
 	if !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("expected not found error, got %v", err)
@@ -520,7 +527,7 @@ func TestEmployeeAdminServiceDisableReturnsNotFoundWhenEmployeeMissing(t *testin
 	service := NewEmployeeAdminService(db, repo)
 
 	mock.ExpectQuery(regexp.QuoteMeta(strings.TrimSpace(`
-		SELECT e.id, e.employee_no, e.system_no, e.name, e.status, e.created_at, e.updated_at,
+		SELECT e.id, e.employee_no, e.system_no, e.feishu_employee_id, e.name, e.status, e.created_at, e.updated_at,
 		       d.id, d.mac_address, d.device_label, d.status, d.created_at, d.updated_at
 		FROM employees e
 		LEFT JOIN employee_devices d ON d.employee_id = e.id

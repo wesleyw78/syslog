@@ -15,11 +15,12 @@ type EmployeeAdminWriter interface {
 }
 
 type employeeWriteRequest struct {
-	EmployeeNo string                  `json:"employeeNo"`
-	SystemNo   string                  `json:"systemNo"`
-	Name       string                  `json:"name"`
-	Status     string                  `json:"status"`
-	Devices    []employeeDeviceRequest `json:"devices"`
+	EmployeeNo       string                  `json:"employeeNo"`
+	SystemNo         string                  `json:"systemNo"`
+	FeishuEmployeeID string                  `json:"feishuEmployeeId"`
+	Name             string                  `json:"name"`
+	Status           string                  `json:"status"`
+	Devices          []employeeDeviceRequest `json:"devices"`
 }
 
 type employeeDeviceRequest struct {
@@ -118,10 +119,11 @@ func employeeWriteInput(req employeeWriteRequest) service.EmployeeWriteInput {
 	}
 
 	return service.EmployeeWriteInput{
-		EmployeeNo: req.EmployeeNo,
-		SystemNo:   req.SystemNo,
-		Name:       req.Name,
-		Status:     req.Status,
-		Devices:    devices,
+		EmployeeNo:       req.EmployeeNo,
+		SystemNo:         req.SystemNo,
+		FeishuEmployeeID: req.FeishuEmployeeID,
+		Name:             req.Name,
+		Status:           req.Status,
+		Devices:          devices,
 	}
 }

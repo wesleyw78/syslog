@@ -29,8 +29,9 @@ INSERT INTO syslog_messages (
 	source_ip,
 	protocol,
 	parse_status,
+	matched_rule_id,
 	retention_expire_at
-) VALUES (?, ?, ?, ?, ?, ?, ?)`
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 
 	result, err := r.db.ExecContext(
 		ctx,
@@ -41,6 +42,7 @@ INSERT INTO syslog_messages (
 		message.SourceIP,
 		message.Protocol,
 		message.ParseStatus,
+		nullableUint64(message.MatchedRuleID),
 		message.RetentionExpireAt,
 	)
 	if err != nil {
@@ -58,7 +60,7 @@ INSERT INTO syslog_messages (
 
 func (r *MySQLSyslogMessageRepository) ListRecent(ctx context.Context, limit int) ([]domain.SyslogMessage, error) {
 	const query = `
-SELECT id, received_at, log_time, raw_message, source_ip, protocol, parse_status, retention_expire_at
+SELECT id, received_at, log_time, raw_message, source_ip, protocol, parse_status, matched_rule_id, retention_expire_at
 FROM syslog_messages
 ORDER BY received_at DESC, id DESC
 LIMIT ?`
@@ -73,6 +75,7 @@ LIMIT ?`
 	for rows.Next() {
 		var message domain.SyslogMessage
 		var logTime sql.NullTime
+		var matchedRuleID sql.NullInt64
 		if err := rows.Scan(
 			&message.ID,
 			&message.ReceivedAt,
@@ -81,12 +84,14 @@ LIMIT ?`
 			&message.SourceIP,
 			&message.Protocol,
 			&message.ParseStatus,
+			&matchedRuleID,
 			&message.RetentionExpireAt,
 		); err != nil {
 			return nil, err
 		}
 
 		message.LogTime = timeFromNullTime(logTime)
+		message.MatchedRuleID = uint64FromNullInt64(matchedRuleID)
 		messages = append(messages, message)
 	}
 

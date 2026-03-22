@@ -56,7 +56,7 @@ func TestCreatePendingReport(t *testing.T) {
 		Version:        2,
 	}
 
-	report := service.CreatePendingReport(record, "clock_out", reportTime, "https://example.test/report")
+	report := service.CreatePendingReport(record, "clock_out", reportTime)
 
 	if report.AttendanceRecordID != record.ID {
 		t.Fatalf("expected record id %d, got %d", record.ID, report.AttendanceRecordID)
@@ -67,8 +67,11 @@ func TestCreatePendingReport(t *testing.T) {
 	if report.IdempotencyKey == "" {
 		t.Fatal("expected idempotency key to be populated")
 	}
-	if report.TargetURL != "https://example.test/report" {
-		t.Fatalf("expected target url to be preserved, got %q", report.TargetURL)
+	if report.TargetURL != "" {
+		t.Fatalf("expected target url to stay empty, got %q", report.TargetURL)
+	}
+	if report.DeleteRecordID != "" {
+		t.Fatalf("expected no delete record id on fresh report, got %q", report.DeleteRecordID)
 	}
 
 	var payload map[string]any
@@ -95,13 +98,16 @@ func TestCreateClearReport(t *testing.T) {
 		Version:        2,
 	}
 
-	report := service.CreateClearReport(record, "clock_in", "https://example.test/report")
+	report := service.CreateClearReport(record, "clock_in")
 
-	if report.TargetURL != "https://example.test/report" {
-		t.Fatalf("expected target url to be preserved, got %q", report.TargetURL)
+	if report.TargetURL != "" {
+		t.Fatalf("expected target url to stay empty, got %q", report.TargetURL)
 	}
 	if report.IdempotencyKey != "attendance-report/employee-7-2026-03-21/clock_in/clear/v2" {
 		t.Fatalf("expected clear idempotency key, got %q", report.IdempotencyKey)
+	}
+	if report.DeleteRecordID != "" {
+		t.Fatalf("expected no delete record id on clear report by default, got %q", report.DeleteRecordID)
 	}
 
 	var payload map[string]any
