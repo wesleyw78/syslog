@@ -23,7 +23,7 @@ func LoadConfigFromEnv(getenv func(string) string) Config {
 	return Config{
 		Timezone:            "Asia/Shanghai",
 		SyslogRetentionDays: intOrDefault(getenv("SYSLOG_RETENTION_DAYS"), 30),
-		SyslogUDPAddr:       stringOrDefault(getenv("SYSLOG_UDP_ADDR"), ":1514"),
+		SyslogUDPAddr:       stringOrDefault(getenv("SYSLOG_UDP_ADDR"), ":514"),
 		MySQLDSN:            stringOrDefault(getenv("MYSQL_DSN"), ""),
 		MySQLHost:           stringOrDefault(getenv("MYSQL_HOST"), "127.0.0.1"),
 		MySQLPort:           intOrDefault(getenv("MYSQL_PORT"), 3306),

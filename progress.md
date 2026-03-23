@@ -1,5 +1,30 @@
 # Progress Log
 
+## Session: 2026-03-23 Feishu Notification Timezone Fix
+
+### Phase T1: Root Cause & Regression Test
+- **Status:** completed
+- Actions taken:
+  - 追踪飞书通知文案生成路径，确认 `buildAttendanceNotificationText` 使用 `time.Local`，而不是应用固定时区
+  - 新增 `TestBuildAttendanceNotificationTextUsesConfiguredLocation`，锁定“即使服务器 `time.Local` 为 UTC，也必须按 `Asia/Shanghai` 显示”这一行为
+  - 运行定向测试，确认在实现修复前因函数签名与时区处理不匹配而失败
+- Files created/modified:
+  - `backend/internal/service/attendance_report_dispatcher_test.go` (modified)
+
+### Phase T2: Dispatcher Wiring & Verification
+- **Status:** completed
+- Actions taken:
+  - 为 `AttendanceReportDispatcher` 增加 `Location` 依赖并保存到结构体
+  - 将 `buildAttendanceNotificationText` 改为显式使用注入时区，而不是 `time.Local`
+  - 在 bootstrap 中把 `app.Location` 传给 dispatcher
+  - 运行 `cd backend && go test ./internal/service -run TestBuildAttendanceNotificationTextUsesConfiguredLocation`
+  - 运行 `cd backend && go test ./internal/service ./internal/bootstrap`
+- Files created/modified:
+  - `backend/internal/service/attendance_report_dispatcher.go` (modified)
+  - `backend/internal/bootstrap/app.go` (modified)
+  - `findings.md` (modified)
+  - `progress.md` (modified)
+
 ## Session: 2026-03-22 Syslog Rule Sort Order Migration Fix
 
 ### Phase M1: Root Cause & Regression Lock

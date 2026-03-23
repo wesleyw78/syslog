@@ -33,6 +33,7 @@ type AttendanceReportDispatcherDeps struct {
 	Employees    repository.EmployeeRepository
 	Settings     repository.SystemSettingRepository
 	Client       FeishuAttendanceClient
+	Location     *time.Location
 	PollInterval time.Duration
 }
 
@@ -41,6 +42,7 @@ type AttendanceReportDispatcher struct {
 	employees    repository.EmployeeRepository
 	settings     repository.SystemSettingRepository
 	client       FeishuAttendanceClient
+	location     *time.Location
 	pollInterval time.Duration
 }
 
@@ -65,6 +67,7 @@ func NewAttendanceReportDispatcher(deps AttendanceReportDispatcherDeps) *Attenda
 		employees:    deps.Employees,
 		settings:     deps.Settings,
 		client:       client,
+		location:     deps.Location,
 		pollInterval: pollInterval,
 	}
 }
@@ -349,7 +352,7 @@ func (d *AttendanceReportDispatcher) dispatchNotificationForReport(ctx context.C
 		return nil
 	}
 
-	text, err := buildAttendanceNotificationText(*employee, payload, config.LocationName)
+	text, err := buildAttendanceNotificationText(*employee, payload, config.LocationName, d.location)
 	if err != nil {
 		return err
 	}
@@ -497,7 +500,7 @@ func shouldNotifyForReport(payload attendanceReportPayload) bool {
 	return payload.Action != "clear" && (payload.ReportType == "clock_in" || payload.ReportType == "clock_out")
 }
 
-func buildAttendanceNotificationText(employee domain.Employee, payload attendanceReportPayload, locationName string) (string, error) {
+func buildAttendanceNotificationText(employee domain.Employee, payload attendanceReportPayload, locationName string, location *time.Location) (string, error) {
 	reportTypeLabel := "上班打卡"
 	if payload.ReportType == "clock_out" {
 		reportTypeLabel = "下班打卡"
@@ -510,7 +513,10 @@ func buildAttendanceNotificationText(employee domain.Employee, payload attendanc
 	if err != nil {
 		return "", fmt.Errorf("parse attendance notification timestamp: %w", err)
 	}
-	localTime := parsed.In(time.Local)
+	if location == nil {
+		location = time.Local
+	}
+	localTime := parsed.In(location)
 
 	return fmt.Sprintf(
 		"【打卡成功通知】\n姓名：%s\n类型：%s\n日期：%s\n时间：%s\n地点：%s\n状态：已成功同步到飞书考勤",

@@ -1,5 +1,11 @@
 # Findings & Decisions
 
+## Feishu Notification Timezone Fix (2026-03-23)
+- 飞书通知文案里的“日期/时间”此前使用 `time.Local` 渲染，而不是应用配置的固定时区；当 Ubuntu 服务器系统时区为 UTC 时，消息文本会显示 UTC 时间。
+- 这个问题只影响通知文案展示，不影响飞书打卡导入本身的 `check_time` 秒级时间戳。
+- 最小正确修复是给 `AttendanceReportDispatcher` 显式注入应用 `Location`，并在 `buildAttendanceNotificationText` 中统一使用该时区渲染文本。
+- bootstrap 已将 `app.Location` 传入 dispatcher，避免继续依赖主机 OS 时区，符合 KISS 和单一职责。
+
 ## Syslog Rule Sort Order Migration Fix (2026-03-22)
 - 启动报错 `Unknown column 'sort_order' in 'field list'` 的根因不是 repository 提前读表，而是 migration 执行顺序错误。
 - `001_init.sql` 在老库场景下会先执行 `INSERT IGNORE INTO syslog_receive_rules (sort_order, ...)`，而 `sort_order` 的幂等补列 SQL 写在这条 insert 后面；旧表没有该列时，migration 会在 seed insert 处提前失败，根本到不了后续 `ALTER TABLE`。

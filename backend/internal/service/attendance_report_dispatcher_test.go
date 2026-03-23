@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -430,6 +431,39 @@ func TestAttendanceReportDispatcherRunOnceRetriesNotificationWithoutRecreatingAt
 	}
 	if reportRepo.saved[0].NotificationRetryCount != 0 {
 		t.Fatalf("expected notification retry count reset to 0, got %d", reportRepo.saved[0].NotificationRetryCount)
+	}
+}
+
+func TestBuildAttendanceNotificationTextUsesConfiguredLocation(t *testing.T) {
+	employee := domain.Employee{
+		ID:   11,
+		Name: "Wesley",
+	}
+	timestamp := "2026-03-23T03:04:05Z"
+	payload := attendanceReportPayload{
+		ReportType: "clock_in",
+		Timestamp:  &timestamp,
+	}
+	location, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatalf("load location: %v", err)
+	}
+
+	originalLocal := time.Local
+	time.Local = time.UTC
+	defer func() {
+		time.Local = originalLocal
+	}()
+
+	text, err := buildAttendanceNotificationText(employee, payload, "办公室", location)
+	if err != nil {
+		t.Fatalf("expected notification text build to succeed, got %v", err)
+	}
+	if !strings.Contains(text, "日期：2026-03-23") {
+		t.Fatalf("expected local date in notification, got %q", text)
+	}
+	if !strings.Contains(text, "时间：11:04:05") {
+		t.Fatalf("expected Asia/Shanghai time in notification, got %q", text)
 	}
 }
 

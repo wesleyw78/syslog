@@ -91,6 +91,7 @@ func New(getenv func(string) string) (App, error) {
 		Reports:   app.Repositories.Reports,
 		Employees: app.Repositories.Employees,
 		Settings:  app.Repositories.Settings,
+		Location:  loc,
 	})
 	app.Services.DebugAdmin = service.NewDebugAdminService(
 		loc,
