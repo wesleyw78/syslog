@@ -10,8 +10,8 @@ func TestLoadConfigDefaults(t *testing.T) {
 	if cfg.SyslogRetentionDays != 30 {
 		t.Fatalf("expected retention 30, got %d", cfg.SyslogRetentionDays)
 	}
-	if cfg.SyslogUDPAddr != ":1514" {
-		t.Fatalf("expected default syslog udp addr :1514, got %s", cfg.SyslogUDPAddr)
+	if cfg.SyslogUDPAddr != ":514" {
+		t.Fatalf("expected default syslog udp addr :514, got %s", cfg.SyslogUDPAddr)
 	}
 	if cfg.MySQLHost != "127.0.0.1" {
 		t.Fatalf("expected default mysql host 127.0.0.1, got %s", cfg.MySQLHost)

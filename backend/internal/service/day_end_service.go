@@ -9,7 +9,7 @@ import (
 const (
 	clockOutStatusPending = "pending"
 	clockOutStatusMissing = "missing"
-	clockOutStatusReady   = "ready"
+	clockOutStatusDone    = "done"
 
 	exceptionStatusNone              = "none"
 	exceptionStatusMissingDisconnect = "missing_disconnect"
@@ -36,7 +36,7 @@ func (s *DayEndService) FinalizeForDay(record domain.AttendanceRecord, now time.
 	}
 
 	if result.ClockOutStatus == "" || result.ClockOutStatus == clockOutStatusPending || result.ClockOutStatus == clockOutStatusMissing {
-		result.ClockOutStatus = clockOutStatusReady
+		result.ClockOutStatus = clockOutStatusDone
 	}
 
 	if result.ExceptionStatus == "" || result.ExceptionStatus == exceptionStatusMissingDisconnect {

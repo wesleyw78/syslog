@@ -20,6 +20,7 @@ type Repositories struct {
 	Reports        repository.ReportRepository
 	Settings       repository.SystemSettingRepository
 	SyslogRules    repository.SyslogReceiveRuleRepository
+	DayEndRuns     repository.DayEndRunRepository
 }
 
 type Services struct {
@@ -29,6 +30,7 @@ type Services struct {
 	SyslogRuleAdmin  *service.SyslogRuleAdminService
 	AttendanceAdmin  *service.AttendanceAdminService
 	ReportDispatcher *service.AttendanceReportDispatcher
+	DayEndDispatcher *service.DayEndDispatcher
 	DebugAdmin       *service.DebugAdminService
 }
 
@@ -70,6 +72,7 @@ func New(getenv func(string) string) (App, error) {
 			Reports:        repository.NewMySQLReportRepository(db),
 			Settings:       repository.NewMySQLSystemSettingRepository(db),
 			SyslogRules:    repository.NewMySQLSyslogReceiveRuleRepository(db),
+			DayEndRuns:     repository.NewMySQLDayEndRunRepository(db),
 		},
 	}
 	app.Services.EmployeeAdmin = service.NewEmployeeAdminService(db, app.Repositories.Employees)
@@ -92,6 +95,14 @@ func New(getenv func(string) string) (App, error) {
 		Employees: app.Repositories.Employees,
 		Settings:  app.Repositories.Settings,
 		Location:  loc,
+	})
+	app.Services.DayEndDispatcher = service.NewDayEndDispatcher(service.DayEndDispatcherDeps{
+		DB:         db,
+		Attendance: app.Repositories.Attendance,
+		Reports:    app.Repositories.Reports,
+		Settings:   app.Repositories.Settings,
+		Runs:       app.Repositories.DayEndRuns,
+		Location:   loc,
 	})
 	app.Services.DebugAdmin = service.NewDebugAdminService(
 		loc,

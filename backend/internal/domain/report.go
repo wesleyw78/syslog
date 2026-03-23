@@ -30,3 +30,10 @@ type SystemSetting struct {
 	SettingValue string
 	UpdatedAt    time.Time
 }
+
+type DayEndRun struct {
+	ID           uint64
+	BusinessDate time.Time
+	CutoffTime   string
+	ExecutedAt   time.Time
+}

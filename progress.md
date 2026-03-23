@@ -1,5 +1,53 @@
 # Progress Log
 
+## Session: 2026-03-23 Immediate Day-End Auto Clock-Out
+
+### Phase E1: Rule & Contract Lock
+- **Status:** completed
+- Actions taken:
+  - 复盘 `AttendanceProcessor`、`SyslogPipeline`、`DayEndService` 与 `cmd/server`，确认现状仅保存 `last_disconnect_at`，没有真实的日切自动收尾执行器
+  - 先补 `day_end_dispatcher_test.go`，锁定到点执行、到点前跳过、缺少 `disconnect` 标记缺卡、同日不重复执行的预期
+  - 明确复用现有 `day_end_time` 设置项，不新增第二个“下班统计时间”字段
+- Files created/modified:
+  - `backend/internal/service/day_end_dispatcher_test.go` (created)
+
+### Phase E2: Dispatcher & Persistence
+- **Status:** completed
+- Actions taken:
+  - 新增 `DayEndRun` 领域对象与 `MySQLDayEndRunRepository`
+  - 在 migration 中新增 `day_end_runs` 表，按业务日期记录日切执行状态
+  - 新增 `DayEndDispatcher`，按轮询读取 `day_end_time`，达到或超过配置时间后处理当天考勤
+  - 收尾时对存在 `last_disconnect_at` 的记录推进 `clock_out_status=done`、`exception_status=none`，并复用 `ReportService` 生成 `clock_out` pending report
+  - 没有 `disconnect` 的记录会标记为 `missing/missing_disconnect`，不自动补报
+- Files created/modified:
+  - `backend/internal/domain/report.go` (modified)
+  - `backend/internal/repository/day_end_run_repository.go` (created)
+  - `backend/internal/service/day_end_dispatcher.go` (created)
+  - `backend/internal/db/migrations/001_init.sql` (modified)
+  - `backend/internal/service/day_end_service.go` (modified)
+  - `backend/internal/service/day_end_service_test.go` (modified)
+  - `backend/tests/integration/syslog_flow_test.go` (modified)
+
+### Phase E3: Wiring & Verification
+- **Status:** completed
+- Actions taken:
+  - 将 `DayEndDispatcher` 注入 bootstrap 和 `cmd/server`，在服务启动后作为真正后台 worker 运行
+  - 启动日志改为输出 `day_end_worker=%T`，替代旧的占位 scheduler 输出
+  - 更新 bootstrap 测试、配置测试以及前端 dashboard/attendance 测试夹具，将旧 `ready` 状态统一改为 `done`
+  - 运行验证：
+    - `cd backend && go test ./internal/service -run 'Test(DayEndDispatcherRunOnce|Finalize)'`
+    - `cd backend && go test ./internal/bootstrap ./tests/integration`
+    - `cd backend && go test ./...`
+    - `cd frontend && npm test -- --run`
+    - `cd frontend && npm run build`
+- Files created/modified:
+  - `backend/internal/bootstrap/app.go` (modified)
+  - `backend/internal/bootstrap/app_test.go` (modified)
+  - `backend/cmd/server/main.go` (modified)
+  - `backend/internal/config/config_test.go` (modified)
+  - `frontend/src/test/dashboard-page.test.tsx` (modified)
+  - `frontend/src/test/attendance-page.test.tsx` (modified)
+
 ## Session: 2026-03-23 Feishu Notification Timezone Fix
 
 ### Phase T1: Root Cause & Regression Test

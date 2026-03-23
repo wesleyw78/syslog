@@ -14,8 +14,6 @@ import (
 	"syslog/internal/bootstrap"
 	httpapi "syslog/internal/http"
 	"syslog/internal/ingest"
-	"syslog/internal/scheduler"
-	"syslog/internal/service"
 )
 
 const adminHTTPAddr = ":8080"
@@ -34,8 +32,6 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	dayEndService := service.NewDayEndService()
-	dayEndCron := scheduler.NewCron(dayEndService)
 	adminServer := httpapi.NewServer(adminHTTPAddr, httpapi.Dependencies{
 		Employees:       app.Repositories.Employees,
 		EmployeeAdmin:   app.Services.EmployeeAdmin,
@@ -90,12 +86,20 @@ func main() {
 			}
 		}()
 	}
+	if app.Services.DayEndDispatcher != nil {
+		go func() {
+			if err := app.Services.DayEndDispatcher.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				log.Printf("day end dispatcher stopped: %v", err)
+				stop()
+			}
+		}()
+	}
 
 	log.Printf(
-		"syslog backend bootstrap ready: timezone=%s retention_days=%d scheduler=%T admin_http=%s syslog_udp=%s",
+		"syslog backend bootstrap ready: timezone=%s retention_days=%d day_end_worker=%T admin_http=%s syslog_udp=%s",
 		app.Config.Timezone,
 		app.Config.SyslogRetentionDays,
-		dayEndCron,
+		app.Services.DayEndDispatcher,
 		adminHTTPAddr,
 		app.Config.SyslogUDPAddr,
 	)

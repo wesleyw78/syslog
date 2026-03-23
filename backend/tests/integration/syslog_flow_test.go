@@ -93,8 +93,8 @@ func TestSyslogFlow(t *testing.T) {
 	}
 
 	finalizedRecord := dayEndService.FinalizeForDay(disconnectResult.Record, dayEndAt)
-	if finalizedRecord.ClockOutStatus != "ready" {
-		t.Fatalf("expected ready clock-out status after day-end, got %q", finalizedRecord.ClockOutStatus)
+	if finalizedRecord.ClockOutStatus != "done" {
+		t.Fatalf("expected done clock-out status after day-end, got %q", finalizedRecord.ClockOutStatus)
 	}
 	if finalizedRecord.ExceptionStatus != "none" {
 		t.Fatalf("expected cleared exception status after day-end, got %q", finalizedRecord.ExceptionStatus)

@@ -1,5 +1,32 @@
 # Task Plan: Syslog Server Initialization
 
+## Active Execution Addendum: Immediate Day-End Auto Clock-Out
+
+### Execution Goal
+复用现有 `day_end_time` 设置项，落地一个真正运行的日切 worker：当当前时间达到或超过用户配置的日切时间时，立即按当天每位员工最后一次 `disconnect` 自动完成下班打卡，生成 `clock_out` pending report，并保证同一天只执行一次。
+
+### Execution Phase
+Phase E3
+
+### Execution Phases
+#### Phase E1: Rule & Contract Lock
+- [x] 审查现有 `DayEndService`、`AttendanceProcessor`、`ReportService` 与主程序启动链路
+- [x] 明确当前缺口在于“有日切规则函数，但没有真实后台执行器与执行状态持久化”
+- [x] 先补失败测试，锁定“到点执行、到点前跳过、缺少 disconnect 标记 missing、同日不重复执行”的边界
+- **Status:** completed
+
+#### Phase E2: Dispatcher & Persistence
+- [x] 新增 `day_end_runs` 持久化表和仓储，按业务日期记录日切已执行状态
+- [x] 新增 `DayEndDispatcher`，按轮询读取 `day_end_time`，达到配置时间后立即执行当天收尾
+- [x] 在收尾中将有 `last_disconnect_at` 的记录推进为 `clock_out_status=done`，并复用现有 report 队列生成 `clock_out` pending report
+- **Status:** completed
+
+#### Phase E3: Wiring & Verification
+- [x] 将 `DayEndDispatcher` 注入 bootstrap 和 `cmd/server`
+- [x] 统一 `DayEndService` 与相关测试/夹具的状态语义，从旧 `ready` 收敛为真正完成态 `done`
+- [x] 运行 backend 全量测试、frontend 全量测试与前端 build
+- **Status:** completed
+
 ## Active Execution Addendum: Migration Hotfix for `sort_order`
 
 ### Execution Goal

@@ -22,7 +22,7 @@ func TestFinalizeMarksMissingDisconnect(t *testing.T) {
 	}
 }
 
-func TestFinalizeKeepsExistingDisconnectReportable(t *testing.T) {
+func TestFinalizeMarksDisconnectAsDone(t *testing.T) {
 	now := time.Date(2026, 3, 21, 23, 59, 0, 0, time.FixedZone("CST", 8*3600))
 	disconnectAt := now.Add(-2 * time.Hour)
 
@@ -34,7 +34,7 @@ func TestFinalizeKeepsExistingDisconnectReportable(t *testing.T) {
 	if result.ExceptionStatus == exceptionStatusMissingDisconnect {
 		t.Fatalf("expected non-missing exception status, got %s", result.ExceptionStatus)
 	}
-	if result.ClockOutStatus != clockOutStatusReady {
-		t.Fatalf("expected ready clock-out status, got %s", result.ClockOutStatus)
+	if result.ClockOutStatus != clockOutStatusDone {
+		t.Fatalf("expected done clock-out status, got %s", result.ClockOutStatus)
 	}
 }

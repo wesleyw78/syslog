@@ -1,5 +1,13 @@
 # Findings & Decisions
 
+## Immediate Day-End Auto Clock-Out (2026-03-23)
+- 现有系统此前只有 `DayEndService.FinalizeForDay(...)` 规则函数，没有真实后台执行器；因此 `day_end_time` 虽然在设置页存在，但不会驱动任何落库动作或飞书下班上报。
+- 用户明确要求沿“方案一”实现：不做固定 cron 重建，而是后台 worker 按分钟轮询当前设置，并在达到或超过配置时间后立即执行。这样当天修改 `day_end_time` 也能即时生效，符合 KISS，同时避免动态调度器的复杂性。
+- 为避免把“是否跑过今天日切”塞进通用设置表，新增独立 `day_end_runs` 表记录已执行业务日期。这符合 SRP，也让执行状态与系统参数解耦，后续排查更直接。
+- 日切收尾结果不再使用旧的占位状态 `ready`，而是直接推进到完成态 `done`。这和“自动做成下班打卡”的业务含义一致，也与人工修正链路中的完成态保持统一，减少前后端语义分裂。
+- 当前实现按“当天日期”执行一次：只有当本地当前时间达到 `day_end_time` 后才处理当天记录，并且同一天只会成功标记一次 `day_end_runs`。这满足用户提出的“立即生效”与“每天自动统计最后一次 disconnect”的需求，避免引入未被要求的跨天补跑复杂度。
+- 自动收尾只会为存在 `last_disconnect_at` 的记录生成 `clock_out` pending report；没有 `disconnect` 的记录会被标成 `missing/missing_disconnect`，但不会自动补卡。这保持 YAGNI，不引入主观推断。
+
 ## Feishu Notification Timezone Fix (2026-03-23)
 - 飞书通知文案里的“日期/时间”此前使用 `time.Local` 渲染，而不是应用配置的固定时区；当 Ubuntu 服务器系统时区为 UTC 时，消息文本会显示 UTC 时间。
 - 这个问题只影响通知文案展示，不影响飞书打卡导入本身的 `check_time` 秒级时间戳。

@@ -215,6 +215,15 @@ CREATE TABLE IF NOT EXISTS attendance_reports (
         FOREIGN KEY (attendance_record_id) REFERENCES attendance_records (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS day_end_runs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    business_date DATE NOT NULL,
+    cutoff_time VARCHAR(5) NOT NULL,
+    executed_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_day_end_runs_business_date (business_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET @employees_has_feishu_employee_id = (
     SELECT COUNT(*)
     FROM INFORMATION_SCHEMA.COLUMNS
